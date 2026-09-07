@@ -667,6 +667,21 @@ différentes.
   - `npm run constantes-check` refuse désormais un littéral à cette place. Il
     lit les sources, ce qu'un navigateur ne peut pas faire, et la règle est
     nommée par son **point de passage** et non par un fichier.
+- **LE TAUX DE BAIE EST PAR RÉGION, ET C'EST LE DERNIER DES DIX AXES À QUITTER
+  LE THÈME.** `BAIE_TAUX` était une constante unique à 0,38 : ce qu'on voit **à
+  travers** le sol disait le thème et jamais l'endroit. `BAIE_REGION[theme][cle]`
+  le régionalise — un paramètre qui existait déjà, **aucun dessin neuf**.
+  - **Deux thèmes seulement, et c'est structurel** : les trois autres n'ont pas
+    de `fond`, donc `drawBaies` sort avant d'y arriver. Régionaliser un taux là
+    où il n'y a rien à voir n'aurait aucun sens — et `verifierBaies` refuse les
+    deux erreurs symétriques : un lieu à fond sans taux, un taux sans fond.
+  - **Zéro est permis et il est utilisé** : la coursive de la Nébuleuse est un
+    volume **clos**, la soute est **aveugle**, la ruelle du Secteur est un canyon.
+    C'est le contraste qui fait lire les autres — la dérive monte à **0,65**, la
+    serre à 0,62 parce qu'une serre **est** une verrière.
+  - **Un écart minimal de 0,30 est exigé sur les douze régions d'un thème.**
+    Douze taux identiques, c'est le réglage d'avant sous un autre nom : le fond
+    ne dirait plus l'endroit, et rien ne le signalerait.
 - **LES ONZE FAMILLES DE PROPS PARAMÉTRIQUES DU DOSSIER NE SERONT PAS ÉCRITES**,
   et c'est une mesure qui l'a décidé. Le §F.3 promettait « 11 fonctions de dessin
   paramétrées au lieu de 48 ». Mesure sur les 68 props réels : la plus forte

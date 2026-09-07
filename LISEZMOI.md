@@ -8,6 +8,41 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le taux de baie était le dernier axe resté au thème (0.43.36)
+
+`BAIE_TAUX` était une **constante unique à 0,38** : ce qu'on voit **à travers** le
+sol disait le thème, et jamais l'endroit. C'était le dernier des dix axes de
+différenciation du §8 encore attaché au thème — et le dossier le classait **rang 2
+de son top 10**, pour un coût nul : un paramètre qui existait déjà, aucun dessin
+neuf.
+
+| | avant | après |
+|---|---:|---:|
+| taux de baie distincts | **1** | **24** (12 par thème) |
+| amplitude, nébuleuse | — | 0,04 (coursive) → **0,65** (dérive) |
+| amplitude, secteur | — | 0,04 (ruelle) → **0,58** (berge) |
+
+**Deux thèmes seulement, et c'est structurel** : les trois autres n'ont pas de
+`fond`, donc `drawBaies` sort avant d'y arriver. Régionaliser un taux là où il n'y
+a rien à voir n'aurait aucun sens.
+
+**Zéro est permis et il est utilisé.** La coursive de la Nébuleuse est un volume
+**clos**, la soute est **aveugle**, la ruelle du Secteur est un canyon : trois
+régions où le sol ne montre rien, et c'est ce contraste qui fait lire les autres.
+La serre monte à 0,62 parce qu'une serre **est** une verrière.
+
+`verifierBaies` gagne trois refus :
+
+- un lieu **à fond** sans taux de région — il prenait `0` en silence, donc plus
+  une seule ouverture et le fond disparaissait sans que rien ne lève ;
+- un taux pour une région qui n'existe pas, ou pour un lieu **sans** fond ;
+- **un écart de moins de 0,30 entre les douze régions d'un thème** — douze taux
+  identiques, c'est le réglage d'avant sous un autre nom.
+
+Preuve qu'il mord des deux côtés : retirer `derive` sort `nebuleuse/derive :
+aucun taux de baie` ; mettre les douze régions du Secteur à 0,30 sort `tous les
+taux de baie tiennent en 0.00 — le fond ne dit plus l endroit`.
+
 ### Une règle écrite puis retirée : l'inclusion est structurelle (0.43.35)
 
 **La chaufferie de l'Usine contenait DEUX inventaires entiers**, celui de la

@@ -10556,6 +10556,26 @@
                   surveiller est le RATIO, que `verifierVocabulaire` plafonne a
                   70 %. Cinquante-deux inclusions strictes sur soixante regions.
 
+    0.43.36 lot 37 LE TAUX DE BAIE ETAIT LE DERNIER AXE RESTE AU THEME.
+                  `BAIE_TAUX` etait une constante unique a 0,38 : ce qu on voit
+                  A TRAVERS le sol disait le theme et jamais l endroit. C etait
+                  le dernier des dix axes de differenciation du §8 encore
+                  attache au theme, et le dossier le classait rang 2 de son top
+                  10 pour un cout NUL — un parametre qui existait deja, aucun
+                  dessin neuf. Un taux devient vingt-quatre, de 0,04 a 0,65.
+                  DEUX THEMES SEULEMENT, ET C EST STRUCTUREL : les trois autres
+                  n ont pas de `fond`, donc `drawBaies` sort avant d y arriver.
+                  ZERO EST PERMIS ET IL EST UTILISE : la coursive est un volume
+                  CLOS, la soute est AVEUGLE, la ruelle est un canyon — et c est
+                  ce contraste qui fait lire les autres. La serre monte a 0,62
+                  parce qu une serre EST une verriere.
+                  `verifierBaies` gagne trois refus : un lieu a fond sans taux
+                  de region (il prenait 0 en silence, donc plus une seule
+                  ouverture), un taux pour une region qui n existe pas ou pour
+                  un lieu sans fond, et un ecart de moins de 0,30 entre les
+                  douze regions d un theme — douze taux identiques, c est le
+                  reglage d avant sous un autre nom.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10564,4 +10584,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.35";
+export const VERSION = "0.43.36";

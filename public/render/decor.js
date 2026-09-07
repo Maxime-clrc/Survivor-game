@@ -5,7 +5,7 @@ import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
 import { souffleDe } from "./dangers.js";
 import { couleeDe, floorPattern, fondDe, macroPattern } from "./material.js";
-import { bornesDistricts, mulberry32 } from "/shared/biomes.js";
+import { bornesDistricts, clesDe, loiCle, mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
@@ -86,7 +86,36 @@ export function drawFond() {
 
    Le pas est celui des nervures : une baie est ce qu'il y a ENTRE deux poutres,
    ce qui explique sa forme et sa place. */
-const BAIE_TAUX = 0.38;
+/* LE TAUX DE BAIE EST PAR REGION, ET C EST LE LEVIER LE MOINS CHER DU DOSSIER :
+   un parametre qui existait deja, aucun dessin neuf, et il porte le seul des dix
+   axes de differenciation qui restait au THEME — ce qu on voit A TRAVERS le sol.
+   Une derive criblee d ouvertures et une soute aveugle ne se lisent pas de la
+   meme facon avant qu on ait identifie un seul objet.
+   DEUX THEMES SEULEMENT, et c est structurel : les trois autres n ont pas de
+   `fond`, donc `drawBaies` sort avant d arriver ici. Regionaliser un taux la ou
+   il n y a rien a voir n aurait aucun sens.
+   ZERO EST PERMIS ET IL EST UTILISE : une coursive est un volume CLOS, une soute
+   est aveugle. C est le contraste qui fait lire les autres. */
+const BAIE_REGION = {
+  nebuleuse: {
+    // la derive est le levier nomme par le dossier : on flotte DANS le vide,
+    // donc le sol en montre le plus possible.
+    derive: 0.65, dock: 0.34, coursive: 0.04, chantier: 0.50, breche: 0.58,
+    // une serre est une VERRIERE : c est sa definition, pas un reglage.
+    serre: 0.62, reacteur: 0.16, antennes: 0.44, soute: 0.06, hangar: 0.26,
+    condenseur: 0.20, carriere: 0.40,
+  },
+  secteur: {
+    rue: 0.30, ruelle: 0.04, marche: 0.22, capsules: 0.14, parking: 0.40,
+    station: 0.36, controle: 0.18, parc: 0.52, tremie: 0.46, berge: 0.58,
+    hall: 0.26, parvis: 0.44,
+  },
+};
+
+function tauxBaie(cle, x, y) {
+  const t = BAIE_REGION[cle];
+  return t ? (t[loiCle(cle, loiAt(x, y))] ?? 0) : 0;
+}
 const BAIE_INSET = 38;
 const BAIE_CHANF = 34;
 const BAIE_MENEAU = 104;
@@ -111,6 +140,7 @@ function cadreBaie(x, y, w, h) {
 
 export function drawBaies() {
   if (gfx <= GFX_LOW) return;
+  const cle = biomeAt(biomeIndex).key;
   const f = fondDe(biomeAt(biomeIndex).fond, biomeSeed, CFG.VIEW_W, CFG.VIEW_H);
   if (!f) return;
   majDerive();
@@ -124,7 +154,7 @@ export function drawBaies() {
   for (let cy = c0y; cy <= c1y; cy++) {
     for (let cx = c0x; cx <= c1x; cx++) {
       if (cx < 0 || cy < 0) continue;
-      if (hCell(cx, cy, s) >= BAIE_TAUX) continue;
+      if (hCell(cx, cy, s) >= tauxBaie(cle, cx * GRID_MAJOR, cy * GRID_MAJOR)) continue;
 
       const x0 = cx * GRID_MAJOR, y0 = cy * GRID_MAJOR;
       const x1 = Math.min(CFG.ARENA_W, x0 + GRID_MAJOR);
@@ -252,6 +282,37 @@ const VIE = { espace: vieEspace, ville: vieVille };
    qui ne se signale jamais non plus. */
 export function verifierBaies() {
   const soucis = [];
+  /* LES DEUX SENS SUR LE TAUX AUSSI. Un lieu a baies sans taux de region prenait
+     `0` en silence — donc plus une seule ouverture, et le fond disparaissait sans
+     que rien ne leve. Un taux pour une region qui n existe pas est un reglage
+     mort. Et un taux pour un lieu SANS fond serait un reglage que personne ne
+     lit : `drawBaies` sort avant. */
+  for (const b of BIOMES) {
+    const t = BAIE_REGION[b.key];
+    const aFond = !!VITRAGE[b.fond];
+    if (!t) {
+      if (aFond) soucis.push(`${b.key} : fond « ${b.fond} » mais aucun taux de baie par region`);
+      continue;
+    }
+    if (!aFond) { soucis.push(`${b.key} : des taux de baie pour un lieu sans fond`); continue; }
+    const cles = clesDe(b.key);
+    for (const c of cles) {
+      if (t[c] === undefined) soucis.push(`${b.key}/${c} : aucun taux de baie`);
+      else if (!(t[c] >= 0 && t[c] <= 0.8)) {
+        soucis.push(`${b.key}/${c} : taux de baie ${t[c]} hors de [0 ; 0,8]`);
+      }
+    }
+    for (const c of Object.keys(t)) {
+      if (!cles.includes(c)) soucis.push(`${b.key}/${c} : taux de baie pour une region qui n existe pas`);
+    }
+    /* ET IL FAUT UN ECART. Douze regions au meme taux, c est le reglage
+       d avant : le fond ne dirait plus rien de l endroit. */
+    const v = cles.map(c => t[c]).filter(x => x !== undefined);
+    if (v.length > 1 && Math.max(...v) - Math.min(...v) < 0.30) {
+      soucis.push(`${b.key} : tous les taux de baie tiennent en `
+        + `${(Math.max(...v) - Math.min(...v)).toFixed(2)} — le fond ne dit plus l endroit`);
+    }
+  }
   const demandes = new Set();
   for (const b of BIOMES) {
     if (!b.fond) continue;
