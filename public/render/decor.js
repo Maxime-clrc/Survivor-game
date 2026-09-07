@@ -9,7 +9,7 @@ import { bornesDistricts, clesDe, loiCle, mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { H_BAS, H_HAUT, contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, hauteurDe, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { biomeKey, celluleH, celluleW, districtsCarte, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, districtsCarte, loiAt, loisEnVue, nLois, poidsMonde, solLoiDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -112,9 +112,23 @@ const BAIE_REGION = {
   },
 };
 
+/* UN TAUX EST UNE QUANTITE, DONC IL SE MELANGE. Lu sur la loi de la cellule, il
+   faisait apparaitre ou disparaitre les baies d un coup a la frontiere — une
+   verriere qui s arrete a la regle est le plus visible des raccords. La moyenne
+   ponderee les fait s eclaircir en approchant, et le seuil aleatoire qui la lit
+   n a rien a savoir du melange. */
+let baiePoids = null;
 function tauxBaie(cle, x, y) {
   const t = BAIE_REGION[cle];
-  return t ? (t[loiCle(cle, loiAt(x, y))] ?? 0) : 0;
+  if (!t) return 0;
+  const n = nLois();
+  if (!baiePoids || baiePoids.length !== n) baiePoids = new Float32Array(n);
+  if (poidsMonde(x, y, baiePoids) === 1) return t[loiCle(cle, loiAt(x, y))] ?? 0;
+  let v = 0;
+  for (let i = 0; i < n; i++) {
+    if (baiePoids[i] > 0) v += baiePoids[i] * (t[loiCle(cle, i)] ?? 0);
+  }
+  return v;
 }
 const BAIE_INSET = 38;
 const BAIE_CHANF = 34;
@@ -1025,43 +1039,129 @@ function sasAmarrage(R, S, v = 0) {
   ctx.stroke();
 }
 
-/* LE SOL SE PEINT PAR CELLULE, PARCE QUE LE LIEU EST PAR CELLULE. Une cellule
-   fait exactement une vue (1600 x 900), donc la camera en touche QUATRE au pire :
-   quatre `fillRect` au lieu d un, et zero quand la carte n a qu un lieu — la
-   boucle retombe alors sur une seule cellule couvrante.
-   LE MOTIF EST ANCRE A L ORIGINE DU MONDE, pas a la cellule : deux cellules du
-   meme lieu se raccordent donc au pixel, et la periode de la tuile ne se decale
-   pas a la frontiere. */
+/* LE SOL SE FOND D UNE REGION A L AUTRE, ET C EST UNE COUCHE PAR REGION.
+
+   IL SE PEIGNAIT PAR CELLULE, donc la frontiere ETAIT le bord d une cellule : une
+   droite axiale longue d un ecran, avec la teinte ET la matiere qui basculaient au
+   meme pixel. Une couche ne peut pas se decouper autrement — un motif est un
+   `fillStyle`, il n a pas d opacite par pixel — donc on peint la region ENTIERE
+   hors ecran et on la ramene a travers un MASQUE.
+
+   LE MASQUE EST GROSSIER, ET C EST LE CALCUL QUI LE PERMET : un texel pour 32 px,
+   redimensionne par le navigateur. Le champ de poids est lisse et de tres basse
+   frequence — sa plus petite structure fait plusieurs centaines de pixels —, donc
+   l interpolation bilineaire du blit EST le fondu. 52 x 32 evaluations par image
+   au lieu de 1 440 000.
+
+   LA PREMIERE COUCHE EST OPAQUE, LES SUIVANTES ONT `w / S`. Empiler k couches a
+   leur poids laisserait passer le fond ENTRE elles : `a1 + a2 = 1` ne dit rien de
+   `(1 - a1)(1 - a2)`, qui vaut `a1 x a2`. Avec l opacite courante `wi / Si` — Si
+   etant la somme des poids deja posees — le resultat est EXACTEMENT la moyenne
+   ponderee et la premiere couche bouche tout. C est pour ca que `loisEnVue` met la
+   region de la camera en tete.
+
+   UNE SEULE REGION EN VUE NE PAIE RIEN : deux `fillRect` sur le canvas courant, le
+   chemin d avant au pixel. C est le cas au CENTRE d un biome, donc le plus
+   frequent — et c est aussi ce qui garantit qu un centre reste pur.
+
+   LE MOTIF RESTE ANCRE A L ORIGINE DU MONDE, couche comprise : la couche porte la
+   meme transformation que le canvas courant, donc la periode de la tuile ne se
+   decale pas d un pixel entre les deux. */
+const MEL_PAS = 32;
+const MEL_MARGE = 2;
+let melCv = null, melG = null;
+const MASQUES = [];
+let melPoids = null;
+const melListe = [];
+
+function masqueDe(i, mw, mh) {
+  let m = MASQUES[i];
+  if (!m) {
+    const cv = document.createElement("canvas");
+    MASQUES[i] = m = { cv, g: cv.getContext("2d"), img: null, w: 0, h: 0 };
+  }
+  if (m.w !== mw || m.h !== mh) {
+    m.cv.width = mw; m.cv.height = mh;
+    m.w = mw; m.h = mh;
+    m.img = m.g.createImageData(mw, mh);
+    // seul le canal alpha porte le masque ; les trois autres restent pleins pour
+    // que `destination-in` ne teinte rien.
+    m.img.data.fill(255);
+  }
+  return m;
+}
+
+function coucheMel() {
+  const c = ctx.canvas;
+  if (!melCv) {
+    melCv = document.createElement("canvas");
+    melG = melCv.getContext("2d");
+  }
+  if (melCv.width !== c.width || melCv.height !== c.height) {
+    melCv.width = c.width; melCv.height = c.height;
+  }
+  return melG;
+}
+
+function peindreRegion(g, loi, x0, y0) {
+  g.fillStyle = solLoiDe(loi).arena;
+  g.fillRect(x0, y0, CFG.VIEW_W, CFG.VIEW_H);
+  const p = floorPattern(g, biomeIndex, difficulty, biomeSeed, renderScale, loi);
+  if (!p) return;
+  g.fillStyle = p;
+  g.fillRect(x0, y0, CFG.VIEW_W, CFG.VIEW_H);
+}
+
 export function drawFloor() {
   const x0 = camera.x0, y0 = camera.y0;
-  const x1 = x0 + CFG.VIEW_W, y1 = y0 + CFG.VIEW_H;
-  const cw = celluleW(), ch = celluleH();
-  const i0 = Math.floor(x0 / cw), i1 = Math.floor((x1 - 1) / cw);
-  const j0 = Math.floor(y0 / ch), j1 = Math.floor((y1 - 1) / ch);
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
-      const rx = Math.max(x0, i * cw), ry = Math.max(y0, j * ch);
-      const rw = Math.min(x1, (i + 1) * cw) - rx, rh = Math.min(y1, (j + 1) * ch) - ry;
-      if (rw <= 0 || rh <= 0) continue;
-      // LA TEINTE DE LA REGION, PAR CELLULE. C est elle qui fait la frontiere :
-      // la matiere du sol reste celle du theme — une friche reste une friche —,
-      // sa teinte dit dans quelle region on est.
-      const mx = rx + rw / 2, my = ry + rh / 2;
-      ctx.fillStyle = solDe(mx, my).arena;
-      ctx.fillRect(rx, ry, rw, rh);
-      /* LA MATIERE AUSSI EST CELLE DE LA REGION, PAS SEULEMENT SA TEINTE. La
-         teinte tient dans sept points de luminance pour les cinq themes — elle
-         ne peut pas porter une frontiere a elle seule. Le theme donne la
-         matiere, la region dit ce qui lui est ARRIVE (`traitementDe`). */
-      const p = floorPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale, loiAt(mx, my));
-      if (!p) continue;
-      ctx.fillStyle = p;
-      ctx.fillRect(rx, ry, rw, rh);
-      const m = macroPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
-      if (!m) continue;
-      ctx.fillStyle = m;
-      ctx.fillRect(rx, ry, rw, rh);
+  const n = nLois();
+  if (!melPoids || melPoids.length !== n) melPoids = new Float32Array(n);
+  loisEnVue(melListe);
+  const k = melListe.length;
+
+  peindreRegion(ctx, melListe[0] ?? 0, x0, y0);
+
+  if (k > 1) {
+    const mw = Math.ceil(CFG.VIEW_W / MEL_PAS) + MEL_MARGE * 2;
+    const mh = Math.ceil(CFG.VIEW_H / MEL_PAS) + MEL_MARGE * 2;
+    const bx = x0 - MEL_MARGE * MEL_PAS, by = y0 - MEL_MARGE * MEL_PAS;
+    for (let l = 1; l < k; l++) masqueDe(l, mw, mh);
+    for (let j = 0; j < mh; j++) {
+      for (let i = 0; i < mw; i++) {
+        poidsMonde(bx + (i + 0.5) * MEL_PAS, by + (j + 0.5) * MEL_PAS, melPoids);
+        const o = (j * mw + i) * 4 + 3;
+        let s = melPoids[melListe[0]];
+        for (let l = 1; l < k; l++) {
+          const w = melPoids[melListe[l]];
+          s += w;
+          MASQUES[l].img.data[o] = s > 0 ? (255 * (w / s)) | 0 : 0;
+        }
+      }
     }
+    const g = coucheMel();
+    const t = ctx.getTransform();
+    for (let l = 1; l < k; l++) {
+      const m = MASQUES[l];
+      m.g.putImageData(m.img, 0, 0);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, melCv.width, melCv.height);
+      g.setTransform(t);
+      peindreRegion(g, melListe[l], x0, y0);
+      g.globalCompositeOperation = "destination-in";
+      g.drawImage(m.cv, bx, by, mw * MEL_PAS, mh * MEL_PAS);
+      g.globalCompositeOperation = "source-over";
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(melCv, x0, y0, CFG.VIEW_W, CFG.VIEW_H);
+    }
+  }
+
+  /* LA NAPPE D USURE EST DE LA CARTE, PAS DE LA REGION — elle n a jamais eu d
+     argument de loi. Une passe pleine vue apres les couches, au lieu d une par
+     cellule : meme resultat, et elle ne peut pas trahir un bord de couche. */
+  const mac = macroPattern(ctx, biomeIndex, difficulty, biomeSeed, renderScale);
+  if (mac) {
+    ctx.fillStyle = mac;
+    ctx.fillRect(x0, y0, CFG.VIEW_W, CFG.VIEW_H);
   }
 }
 

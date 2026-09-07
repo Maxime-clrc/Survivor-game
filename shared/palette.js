@@ -964,6 +964,19 @@ function labDe(hex) {
   return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
 }
 
+/* DEUX COULEURS DE LA CHARTE, FONDUES. Le seul point de melange de teintes du
+   depot : une frontiere de region fond une teinte de sol dans une autre, et le
+   faire dans l appelant y recopierait la conversion hexadecimale. Lineaire en
+   octets, pas en LAB — c est un fondu de surface, pas une rampe a construire, et
+   l ecart en jeu (dE 11 au plus) ne justifie pas la conversion par pixel. */
+export function melerHex(a, b, t) {
+  if (t <= 0) return a;
+  if (t >= 1) return b;
+  const A = rgbDe(a), B = rgbDe(b);
+  const m = i => Math.round(A[i] + (B[i] - A[i]) * t).toString(16).padStart(2, "0");
+  return `#${m(0)}${m(1)}${m(2)}`;
+}
+
 export function ecartCouleur(a, b) {
   const A = labDe(a), B = labDe(b);
   return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]);

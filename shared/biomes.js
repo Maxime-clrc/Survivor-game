@@ -2752,6 +2752,11 @@ export function buildBiome(biomeIndex, diffIndex, seed = 1,
        et tout ce qui se dessine QUELQUE PART le lit. Elle ne circule pas :
        `buildBiome` est deterministe et les deux cotes le rejouent sur la graine. */
     lois: choix,
+    /* COMBIEN DE LOIS LE THEME PORTE, et non combien la carte en montre : tout
+       ce qui s indexe par loi — le vecteur de poids, sa table de durete — est de
+       cette taille-la, et une carte qui n en montre que cinq lirait a cote. */
+    nLois: Math.max(1, varis.length),
+    melSeed: seed >>> 0,
     cols, rows, cw, ch,
     obstacles, hazards,
     /* LE DECOUPAGE SORT AVEC LE LIEU, ET C EST TOUT L INTERET. Le semis avait sa
@@ -2788,6 +2793,237 @@ export function loiAt(b, x, y) {
   const cx = Math.min(b.cols - 1, Math.max(0, Math.floor(x / b.cw)));
   const cy = Math.min(b.rows - 1, Math.max(0, Math.floor(y / b.ch)));
   return b.lois[cy * b.cols + cx] ?? 0;
+}
+
+/* LE POIDS DE CHAQUE REGION EN UN POINT, ET C EST TOUT LE SUJET DES FRONTIERES.
+
+   `loiAt` rend un ENTIER, donc une fonction en escalier sur une grille dont la
+   maille est UNE VUE : la frontiere de deux regions est une droite axiale longue
+   d un ecran, et les quatre choses qui la lisent — teinte du sol, matiere du
+   sol, densite du semis, matiere des traces — basculent toutes au MEME pixel.
+   C est la SYNCHRONISATION qui fait le patchwork, pas l ecart de chaque axe.
+
+   ICI ON REND UN VECTEUR. Au centre d une region un seul poids vaut 1 —
+   l identite reste ENTIERE, c est la contrainte posee : on borde le biome, on ne
+   le delave pas. Sur une frontiere deux poids se partagent l unite ; a un coin de
+   trois regions, trois. Le voisinage est le 2x2 des centres de cellule, donc
+   quatre lois peuvent peser : une jonction triple n est PAS un cas particulier,
+   elle tombe du meme calcul — trois transitions independantes en feraient une
+   quatrieme couture au centre.
+
+   LE NOYAU A UN PLATEAU, et c est ce qui separe « melanger » de « delaver ». Un
+   noyau bilineaire ordinaire fondrait sur une cellule ENTIERE, donc pur nulle
+   part sauf au centre exact. Ici il vaut 1 jusqu a `0.5 - LARGE` et 0 au-dela de
+   `0.5 + LARGE` : le fondu ne mord que sur `2 x LARGE` cellule. Les deux noyaux
+   d un axe somment a 1 EXACTEMENT — smoothstep est antisymetrique autour de 1/2 —
+   donc la normalisation ne rattrape rien, elle garde.
+
+   LE GAUCHISSEMENT EST CE QUI TUE LA DROITE. On ne deforme pas la frontiere, on
+   deplace le POINT D ECHANTILLONNAGE avant de la lire : deux octaves de bruit de
+   valeur, donc une limite irreguliere a deux echelles. Sans lui le plateau ne
+   ferait qu epaissir une droite, et une droite epaisse reste une droite. */
+export const MEL_CFG = {
+  // demi-largeur du fondu, en cellules. 0,24 fait 768 px sur une cellule de
+  // 1600 : une demi-vue de transition, assez pour se lire en marchant.
+  LARGE: 0.24,
+  // amplitude du gauchissement, en cellules. Sous 0,12 la frontiere reste une
+  // droite molle ; au-dela de 0,25 elle detache des ilots de leur region.
+  ONDULE: 0.19,
+  PAS: 0.62,
+  OCTAVE: 0.45,
+};
+
+function hachMel(ix, iy, s) {
+  let h = Math.imul(ix | 0, 0x27d4eb2d) ^ Math.imul(iy | 0, 0x85ebca6b)
+        ^ Math.imul(s | 0, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2545f491);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
+
+// bruit de valeur, lisse, centre sur zero. Rien ne s alloue : il tourne par
+// pixel de masque et par cellule de semis.
+function ondule(x, y, pas, s) {
+  const fx = x / pas, fy = y / pas;
+  const ix = Math.floor(fx), iy = Math.floor(fy);
+  const tx = fx - ix, ty = fy - iy;
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const a = hachMel(ix, iy, s), b = hachMel(ix + 1, iy, s);
+  const c = hachMel(ix, iy + 1, s), d = hachMel(ix + 1, iy + 1, s);
+  const h0 = a + (b - a) * sx;
+  return h0 + ((c + (d - c) * sx) - h0) * sy - 0.5;
+}
+
+function noyauMel(d, L) {
+  const t = (0.5 + L - d) / (2 * L);
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return t * t * (3 - 2 * t);
+}
+
+/* LE POINT LU, GAUCHI. Sorti de `poidsAt` parce que ce qui doit s accorder avec
+   la frontiere SANS peser les regions — le debord d une trame — lit le meme point
+   deplace. Deux gauchissements differents dessineraient deux limites. */
+export function pointMel(b, x, y, out) {
+  const amp = MEL_CFG.ONDULE * b.ch, pas = MEL_CFG.PAS * b.ch;
+  const s = (b.melSeed ?? 1) | 0;
+  const ox = ondule(x, y, pas, s)
+    + ondule(x, y, pas * 0.37, s + 11) * MEL_CFG.OCTAVE;
+  const oy = ondule(y, x, pas, s + 7)
+    + ondule(y, x, pas * 0.37, s + 19) * MEL_CFG.OCTAVE;
+  out[0] = x + ox * 2 * amp;
+  out[1] = y + oy * 2 * amp;
+  return out;
+}
+
+const MEL_PT = [0, 0];
+
+/* REMPLIT `poids` ET REND LE NOMBRE DE REGIONS QUI PESENT. `poids` est indexe par
+   loi et remis a zero par l appel : aucune allocation, il tourne par pixel de
+   masque et par cellule de semis.
+
+   `durete` EST OPTIONNELLE ET C EST ELLE QUI REGLE LA LARGEUR PAR PAIRE. Une
+   largeur unique est fausse dans les deux sens : deux regions de meme teinte n ont
+   rien a fondre sur 768 px, et deux palettes eloignees en demandent plus. Un
+   exposant sur le vecteur deplace la mi-pente sans toucher aux bouts — au-dessus
+   de 1 le fondu se resserre, en dessous il s etale — donc la largeur se regle SANS
+   que le noyau ait a connaitre la paire.
+   `biomes.js` NE DEPEND DE RIEN : ce qui separe deux regions se lit dans la
+   palette, donc c est l APPELANT qui construit la table (plate, de pas `nLois`). */
+export function poidsAt(b, x, y, poids, durete = null) {
+  poids.fill(0);
+  if (!b?.lois) { poids[0] = 1; return 1; }
+  pointMel(b, x, y, MEL_PT);
+  const u = MEL_PT[0] / b.cw - 0.5, v = MEL_PT[1] / b.ch - 0.5;
+  const i0 = Math.floor(u), j0 = Math.floor(v);
+  const L = MEL_CFG.LARGE;
+  let som = 0;
+  for (let j = j0; j <= j0 + 1; j++) {
+    const ky = noyauMel(Math.abs(v - j), L);
+    if (ky <= 0) continue;
+    const cy = j < 0 ? 0 : j >= b.rows ? b.rows - 1 : j;
+    for (let i = i0; i <= i0 + 1; i++) {
+      const kx = noyauMel(Math.abs(u - i), L);
+      if (kx <= 0) continue;
+      const cx = i < 0 ? 0 : i >= b.cols ? b.cols - 1 : i;
+      poids[b.lois[cy * b.cols + cx] ?? 0] += kx * ky;
+      som += kx * ky;
+    }
+  }
+  if (som <= 0) { poids[loiAt(b, x, y)] = 1; return 1; }
+
+  let n = 0, a = -1, d = -1, wa = -1, wd = -1;
+  for (let i = 0; i < poids.length; i++) {
+    const w = poids[i];
+    if (w <= 0) continue;
+    n++;
+    if (w > wa) { d = a; wd = wa; a = i; wa = w; }
+    else if (w > wd) { d = i; wd = w; }
+  }
+  // LE CAS COURANT EST UNE SEULE REGION — le centre d un biome — et il ne paie
+  // ni exposant ni division.
+  if (n === 1) { poids[a] = 1; return 1; }
+
+  const g = durete && d >= 0 ? (durete[a * b.nLois + d] || 1) : 1;
+  if (g !== 1) {
+    som = 0;
+    for (let i = 0; i < poids.length; i++) {
+      if (poids[i] > 0) { poids[i] = Math.pow(poids[i], g); som += poids[i]; }
+    }
+  }
+  const inv = 1 / som;
+  for (let i = 0; i < poids.length; i++) poids[i] *= inv;
+  return n;
+}
+
+/* LA REGION D UN POINT, TIREE DANS SES POIDS. Ce qui est CATEGORIEL — un
+   catalogue de props, une matiere de trace — ne s interpole pas : on tire. `u` est
+   le hachage deterministe que l appelant a deja pour cette cellule, donc deux
+   clients voient le meme semis et la part de chaque region sur une POPULATION est
+   exactement son poids. Au bord, un prop sur trois vient d en face et on ne peut
+   pas dire lesquels : c est ca, une frontiere qui ne se lit pas. */
+export function loiTiree(poids, u) {
+  let c = 0;
+  for (let i = 0; i < poids.length; i++) {
+    c += poids[i];
+    if (u < c) return i;
+  }
+  for (let i = poids.length - 1; i >= 0; i--) if (poids[i] > 0) return i;
+  return 0;
+}
+
+/* LE MELANGE FAIT-IL CE QU IL DIT, ET SURTOUT NE FAIT-IL QUE CA.
+
+   QUATRE QUESTIONS, ET LA PREMIERE EST CELLE QUI COMPTE : le CENTRE d une region
+   reste PUR. Un fondu qui delave l identite au lieu de la border est le defaut que
+   la mission interdit explicitement, et il ne leve rien — la carte reste jouable,
+   elle cesse seulement de se lire.
+   Les trois autres : les poids somment a 1 partout (sinon le sol s assombrit sur
+   une bande sans que rien ne le dise) ; le melange melange VRAIMENT quelque part,
+   et pas trop ; et une frontiere n est PAS une droite — on la mesure en comptant
+   les abscisses distinctes ou la region dominante bascule, ligne par ligne. Une
+   droite en donne UNE. */
+export function verifierMelange(graines = 10) {
+  const soucis = [];
+  const aw = 14400, ah = 8100, vw = 1600, vh = 900;
+  let purs = 0, vus = 0, melanges = 0, nMel = 0;
+  for (let k = 0; k < graines; k++) {
+    const b = buildBiome(0, 1, k * 13 + 3, aw, ah, vw, vh);
+    const poids = new Float32Array(b.nLois);
+    for (let cy = 0; cy < b.rows; cy++) {
+      for (let cx = 0; cx < b.cols; cx++) {
+        const n = poidsAt(b, (cx + 0.5) * b.cw, (cy + 0.5) * b.ch, poids);
+        vus++;
+        if (n === 1 && poids[b.lois[cy * b.cols + cx]] === 1) purs++;
+      }
+    }
+    let mauvais = 0;
+    for (let i = 0; i < 600; i++) {
+      const x = ((i * 37) % 599) / 599 * aw, y = ((i * 53) % 587) / 587 * ah;
+      const n = poidsAt(b, x, y, poids);
+      let s = 0;
+      for (let j = 0; j < poids.length; j++) s += poids[j];
+      if (Math.abs(s - 1) > 1e-3 && mauvais++ === 0) {
+        soucis.push("graine " + k + " : les poids somment a " + s.toFixed(3)
+          + " en (" + (x | 0) + ", " + (y | 0) + ")");
+      }
+      nMel++;
+      if (n > 1) melanges++;
+    }
+    const abscisses = new Set();
+    let bascules = 0;
+    for (let cy = 0; cy < b.rows; cy++) {
+      const yy = (cy + 0.5) * b.ch;
+      let prec = -1;
+      for (let px = 0; px < aw; px += 40) {
+        poidsAt(b, px, yy, poids);
+        let best = 0;
+        for (let j = 1; j < poids.length; j++) if (poids[j] > poids[best]) best = j;
+        if (prec >= 0 && best !== prec) { abscisses.add(px); bascules++; }
+        prec = best;
+      }
+    }
+    if (bascules > 0 && abscisses.size < 3) {
+      soucis.push("graine " + k + " : " + bascules + " bascules de region pour"
+        + " seulement " + abscisses.size + " abscisse(s) — la frontiere est une droite");
+    }
+  }
+  const partPure = purs / vus;
+  if (partPure < 0.85) {
+    soucis.push("seulement " + (partPure * 100).toFixed(0) + " % des centres de"
+      + " cellule sont d une region PURE : le fondu delave au lieu de border");
+  }
+  const partMel = melanges / nMel;
+  if (partMel < 0.10) {
+    soucis.push((partMel * 100).toFixed(0) + " % des points melangent deux"
+      + " regions : le fondu est trop etroit pour se voir");
+  }
+  if (partMel > 0.55) {
+    soucis.push((partMel * 100).toFixed(0) + " % des points melangent deux"
+      + " regions : il ne reste plus assez de centre pur");
+  }
+  return soucis;
 }
 
 // COMBIEN DE LOIS UN THEME PORTE-T-IL. Lu par les tables qui en declarent une

@@ -8,6 +8,105 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Le sol d'une région s'arrêtait à la règle (0.43.39)
+
+Rapport de terrain, capture à l'appui : trois régions se rencontrent et on voit
+**deux droites**. Texture, densité, motifs et décoration basculent toutes au même
+pixel — « l'impression que trois générateurs ont été assemblés bord à bord ».
+
+**La cause est une seule ligne**, `loiAt(b, x, y)` : la région d'un point est
+`lois[floor(y / ch) * cols + floor(x / cw)]`, avec `cw × ch = 1600 × 900`,
+c'est-à-dire **une vue**. C'est une fonction en escalier sur une grille dont la
+maille fait un écran, donc :
+
+- une frontière est une **droite axiale** longue d'au moins un écran ;
+- il n'existe **aucune** zone de transition, la notion n'est écrite nulle part.
+
+Le bruit de `districtsDe` déplace l'appartenance d'une **cellule**, pas d'un
+pixel : à l'intérieur d'une cellule la limite reste une droite.
+
+Ce qui bascule, tout en même temps, et de combien :
+
+| axe | lecture | amplitude mesurée |
+|---|---|---|
+| teinte du sol | `solDe(mx, my).arena` par cellule | **dE 11,1** (usine), 11,3 (secteur), 11,0 (fonderie) |
+| matière du sol | `floorPattern(…, loiAt)` | passe `TRAITEMENT` entière |
+| densité du semis | `airDe(thème, loi).dens` | **0,52 → 1,34, soit ×2,6** |
+| matière des traces | `AIR[…].matieres` | changement net |
+| taux de baie | `BAIE_REGION[clé][loi]` | 0,04 → 0,62 |
+
+**C'est la synchronisation qui fait le patchwork**, pas l'écart de chaque axe pris
+seul. Les blocs, eux, ne sont pas en cause : une dizaine par écran, et 0.42.1
+l'avait déjà mesuré comme invisible.
+
+#### Ce que rend le champ de poids
+
+`poidsAt` remplace l'entier par un **vecteur** : au centre d'une région un seul
+poids vaut 1, sur une frontière deux se partagent l'unité, à un coin de trois
+régions trois. Le voisinage est le 2 × 2 des centres de cellule, donc une jonction
+triple n'est **pas** un cas particulier — elle tombe du même calcul.
+
+| mesure | 10 graines × 81 cellules |
+|---|---|
+| centres de cellule d'une région **pure** | **100 %** (810 / 810) |
+| centres dont la dominante n'est pas leur loi (îlots) | **0** |
+| points de l'arène en transition | **14,8 %** |
+| errance de la frontière (`ONDULE 0,19`) | **± 190 px** sur 900 px de haut |
+| coût de `verifierMelange(10)` | 32 ms |
+
+Le noyau a un **plateau** (`LARGE = 0,24` cellule, soit 768 px de bande) : un
+noyau bilinéaire ordinaire aurait fondu sur une cellule entière, donc pur nulle
+part sauf au centre exact. Les deux noyaux d'un axe somment à 1 **exactement**,
+`smoothstep` étant antisymétrique autour de ½.
+
+**Le gauchissement est ce qui tue la droite** : on ne déforme pas la frontière, on
+déplace le point d'échantillonnage (deux octaves de bruit de valeur). Sans lui le
+plateau ne fait qu'épaissir une droite, et une droite épaisse reste une droite.
+
+#### La largeur suit la paire
+
+Une largeur unique se trompe des deux côtés. L'écart se lit sur la **teinte du
+sol** — le seul axe que les deux côtés du fondu partagent — et pilote un exposant
+sur le vecteur, qui déplace la mi-pente sans toucher aux bouts.
+
+| paire (usine) | dE | exposant | effet |
+|---|---:|---:|---|
+| chaîne / traitement | 0,00 | 1,90 | fondu resserré : rien à fondre |
+| carrefour / traitement | 5,54 | 0,91 | fondu franc |
+| maintenance / utilités | 11,11 | 0,62 | fondu étalé |
+
+#### Le sol se peint par couche, plus par cellule
+
+Un motif est un `fillStyle` : il n'a pas d'opacité par pixel. On peint donc la
+région entière hors écran et on la ramène à travers un **masque** de 52 × 32
+texels (un pour 32 px), redimensionné par le navigateur — le champ de poids est
+lisse et de très basse fréquence, donc l'interpolation bilinéaire du blit **est**
+le fondu. **52 × 32 évaluations par image au lieu de 1 440 000.**
+
+La première couche est **opaque**, les suivantes ont `w / S`. Empiler k couches à
+leur poids laisserait passer le fond entre elles : `a1 + a2 = 1` ne dit rien de
+`(1 − a1)(1 − a2)`, qui vaut `a1 × a2`. Avec l'opacité courante le résultat est
+exactement la moyenne pondérée, et `loisEnVue` met la région de la caméra en tête.
+
+**Une seule région en vue ne paie rien** : deux `fillRect`, le chemin d'avant au
+pixel — c'est le cas au centre d'un biome, donc le plus fréquent.
+
+Coût mesuré, Chrome headless, caméra **posée sur la frontière** (usine, graine 7,
+carrefour ↔ traitement), 180 images :
+
+| | médiane | p95 | max |
+|---|---:|---:|---:|
+| avant | 5,60 ms | 6,00 | 7,80 |
+| après | 5,50 ms | 6,00 | 8,70 |
+
+Rien de mesurable : le masque est minuscule et les couches ne se paient que là où
+il y a une frontière.
+
+**Protocole** (rejouable) : `GRAINE=7 BIOME=usine BAC=1 node server.js` sur un port
+dédié, Chrome `--headless=new --remote-debugging-port`, CDP pour créer un compte,
+une salle, lancer la manche, puis `q` 3 000 ms et `z` 1 700 ms — la caméra arrive
+sur le coin où les cellules (3,3)=8, (4,3)=1, (3,4)=6 et (4,4)=6 se rejoignent.
+
 ### L'Usine était le seul thème entièrement dans le noir (0.43.38)
 
 La lumière au sol est un des dix axes de différenciation, et il ne fonctionne que

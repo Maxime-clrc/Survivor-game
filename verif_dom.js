@@ -32,6 +32,15 @@ const c2d = new Proxy({}, {
     }
     if (k === "createPattern") return () => ({ setTransform() {} });
     if (k === "getImageData") return () => ({ data: new Uint8ClampedArray(4) });
+    /* UNE VRAIE IMAGEDATA, ET C EST LE MASQUE DE FONDU QUI L EXIGE. Le proxy rend
+       une FONCTION pour toute clef inconnue : `img.data.fill(255)` levait donc un
+       TypeError des que `drawFloor` avait deux regions en vue — c est-a-dire
+       partout ou ce lot agit. */
+    if (k === "createImageData") {
+      return (w, h) => ({ width: w, height: h,
+                          data: new Uint8ClampedArray(Math.max(4, (w | 0) * (h | 0) * 4)) });
+    }
+    if (k === "getTransform") return () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 });
     if (typeof k === "string" && (k === "fillStyle" || k === "strokeStyle"
       || k === "globalAlpha" || k === "lineWidth" || k === "font"
       || k === "globalCompositeOperation" || k === "textAlign" || k === "lineCap"

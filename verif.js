@@ -171,6 +171,13 @@ const SUITE = [
     CFG.ARENA_W, CFG.ARENA_H, CFG.VIEW_W, CFG.VIEW_H)],
   ["districts", () => B2.verifierDistricts(60,
     Math.round(CFG.ARENA_W / CFG.VIEW_W), Math.round(CFG.ARENA_H / CFG.VIEW_H))],
+  /* LE FONDU BORDE-T-IL LES REGIONS OU LES DELAVE-T-IL. `districts` verifie le
+     DECOUPAGE, `regions` la loi de chaque cellule ; ni l un ni l autre ne dit
+     quoi que ce soit de ce qui se passe ENTRE deux regions, et c est la que la
+     carte se lisait comme un patchwork. Trois criteres qui ne peuvent pas etre
+     satisfaits ensemble par erreur : le centre reste pur, les poids somment a un,
+     et la frontiere n est pas une droite. */
+  ["melange", () => B2.verifierMelange(10)],
   /* LA LARGEUR DE PASSAGE, SUR TOUTE LA REGION ET SUR DES GRAINES. Le
      verificateur de navigation ne tournait que sur la graine 7 : avec des
      variantes tirees par cellule, une graine ne couvre presque rien, et un

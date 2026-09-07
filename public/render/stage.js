@@ -1,7 +1,8 @@
 import { createGL } from "/gl.js";
 
 import { BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, PLAYER_COLORS, WX_BRUME, biomeAt, buildBiome, loiAt as loiDeCarte } from "/shared/game_state.js";
-import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, solDeBiome } from "/shared/palette.js";
+import { MEL_CFG, poidsAt } from "/shared/biomes.js";
+import { CADRE_SKIN, ENEMY, biomeSkin, cssVars, decorAt, ecartCouleur, melerHex, solDeBiome } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { reuploadAtlas } from "/sprites.js";
 import { PERF, latest, lobby, myId, predicted } from "../core/state.js";
@@ -32,13 +33,128 @@ function refreshSol() {
   // la loi 0, pas celle de la camera : ce module s initialise AVANT que `camera`
   // existe, et une lecture en zone morte casse tout le rendu a l import.
   sol = solLoi(0);
+  refreshMel();
   vignette = null;
 }
-// LE BIOME D UN POINT, ET CELUI DE LA VUE. Tout ce qui se dessine QUELQUE PART
-// lit le premier ; ce qui peint la vue entiere lit le second.
+
+/* LA LARGEUR D UN FONDU SUIT L ECART DES DEUX REGIONS, ET C EST LA SEULE FACON
+   QU ELLE SOIT JUSTE. Une largeur unique se trompe des deux cotes : deux regions
+   qui ne different que d un dE de 2 n ont rien a fondre sur 768 px — on voit
+   passer un dégradé la ou on ne voyait rien —, et deux palettes eloignees de 11
+   en demandent davantage.
+   L ECART SE LIT SUR LA TEINTE DU SOL, et c est le seul axe que les deux cotes du
+   fondu partagent : la matiere, le semis et les traces sont des tables qui n ont
+   pas d unite commune. Il est aussi celui qui portait la frontiere — mesure du
+   depot : jusqu a 11,1 de dE entre deux regions d un theme.
+   `biomes.js` ne depend de RIEN et ne peut donc pas lire la palette : la table se
+   construit ici et se passe a `poidsAt`. */
+const MEL_DUR = { SERRE: 1.9, LARGE: 0.62, ECART_REF: 8 };
+let melDurete = null;
+let melBuf = null;
+
+function refreshMel() {
+  const n = biome.nLois ?? 1;
+  melBuf = new Float32Array(n);
+  melDurete = new Float32Array(n * n);
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      const d = a === b ? 0 : ecartCouleur(solLoi(a).arena, solLoi(b).arena);
+      const t = Math.min(1, d / MEL_DUR.ECART_REF);
+      melDurete[a * n + b] = MEL_DUR.SERRE
+        + (MEL_DUR.LARGE - MEL_DUR.SERRE) * (t * t * (3 - 2 * t));
+    }
+  }
+}
+
+// COMBIEN DE LOIS LE THEME PORTE. Tout ce qui alloue un vecteur de poids le lit.
+export function nLois() { return biome.nLois ?? 1; }
+
+// LE VECTEUR DE POIDS D UN POINT. Point de passage unique du melange cote rendu :
+// le sol, le semis et les traces le lisent tous ici, donc ils fondent au MEME
+// endroit — deux champs independants redessineraient une frontiere.
+export function poidsMonde(x, y, poids) {
+  return poidsAt(biome, x, y, poids, melDurete);
+}
+
+// LA TEINTE DE SOL D UNE REGION, sans passer par un point du monde : `drawFloor`
+// peint par COUCHE de region, pas par cellule.
+export function solLoiDe(loi) { return solLoi(loi); }
+
+/* LES REGIONS QUI PESENT DANS LA VUE. La marge n est pas la vue : un point du
+   bord lit son voisinage a travers le gauchissement (jusqu a
+   `ONDULE x (1 + OCTAVE)` cellule) PUIS le noyau (`LARGE` cellule). Une cellule
+   qui ne touche pas la vue peut donc y peser, et l oublier ferait un trou de
+   couche — le fond nu, sur une bande. */
+export function loisEnVue(out) {
+  out.length = 0;
+  const my = MEL_CFG.ONDULE * (1 + MEL_CFG.OCTAVE) * biome.ch;
+  const mx = my + MEL_CFG.LARGE * biome.cw;
+  const i0 = Math.floor((camera.x0 - mx) / biome.cw);
+  const i1 = Math.floor((camera.x0 + CFG.VIEW_W + mx) / biome.cw);
+  const j0 = Math.floor((camera.y0 - my - MEL_CFG.LARGE * biome.ch) / biome.ch);
+  const j1 = Math.floor((camera.y0 + CFG.VIEW_H + my + MEL_CFG.LARGE * biome.ch) / biome.ch);
+  for (let j = j0; j <= j1; j++) {
+    const cy = j < 0 ? 0 : j >= biome.rows ? biome.rows - 1 : j;
+    for (let i = i0; i <= i1; i++) {
+      const cx = i < 0 ? 0 : i >= biome.cols ? biome.cols - 1 : i;
+      const l = biome.lois?.[cy * biome.cols + cx] ?? 0;
+      if (!out.includes(l)) out.push(l);
+    }
+  }
+  // LA REGION DE LA CAMERA PASSE EN TETE, et ce n est pas cosmetique : la couche
+  // de tete se peint OPAQUE (voir `drawFloor`), donc c est elle qui ne peut
+  // jamais laisser passer le fond. Autant que ce soit celle qu on regarde.
+  const c = loiDeCarte(biome, camera.x, camera.y);
+  const k = out.indexOf(c);
+  if (k > 0) { out[k] = out[0]; out[0] = c; }
+  return out;
+}
+
+/* LA TEINTE DE LA VUE, MELANGEE. Ce qui peint la vue ENTIERE — la grille de 20 m,
+   le fond sous le decor — prend la teinte de la region de la camera : elle
+   basculait donc d un coup en traversant une frontiere, et ce clignotement se
+   voyait sur toute la surface alors que le sol, lui, fondait. Elle suit le meme
+   melange, au point de la camera. */
+function melerSol(x, y) {
+  const n = biome.nLois ?? 1;
+  if (!melBuf || melBuf.length !== n) refreshMel();
+  const k = poidsAt(biome, x, y, melBuf, melDurete);
+  let a = 0;
+  for (let i = 0; i < n; i++) if (melBuf[i] > melBuf[a]) a = i;
+  if (k === 1) return solLoi(a);
+  // fondu successif a poids courant : `mel(c, ci, wi / Si)` rend exactement la
+  // moyenne ponderee, et la premiere couleur n a pas de fond a laisser passer.
+  let s = melBuf[a];
+  const c = { ...solLoi(a) };
+  for (let i = 0; i < n; i++) {
+    if (i === a || melBuf[i] <= 0) continue;
+    s += melBuf[i];
+    const t = melBuf[i] / s;
+    const o = solLoi(i);
+    c.arena = melerHex(c.arena, o.arena, t);
+    c.gridFine = melerHex(c.gridFine, o.gridFine, t);
+    c.gridMajor = melerHex(c.gridMajor, o.gridMajor, t);
+  }
+  return c;
+}
+
+// LA LOI DE LA CELLULE D UN POINT — la region SANS son fondu. Ce qui doit
+// designer une region entiere, pas ce qu on voit a un pixel : le repli du taux de
+// baie quand un seul poids pese.
 export function loiAt(x, y) { return loiDeCarte(biome, x, y); }
-export function loiCourante() { return loiDeCarte(biome, camera.x, camera.y); }
-export function solDe(x, y) { return solLoi(loiAt(x, y)); }
+
+/* LA REGION QU ON REGARDE, ET C EST LA DOMINANTE DU MELANGE, pas la loi de la
+   cellule. Le bandeau la NOMME : lu sur la cellule, il changeait de nom sur la
+   droite de la grille pendant que le sol, lui, changeait ailleurs — le joueur
+   voyait le nom basculer au milieu du biome precedent. */
+export function loiCourante() {
+  const n = biome.nLois ?? 1;
+  if (!melBuf || melBuf.length !== n) refreshMel();
+  poidsAt(biome, camera.x, camera.y, melBuf, melDurete);
+  let a = 0;
+  for (let i = 1; i < n; i++) if (melBuf[i] > melBuf[a]) a = i;
+  return a;
+}
 
 export function rebuildBiome(diffIndex = 1) {
   biome = buildBiome(biomeIndex, diffIndex, biomeSeed,
@@ -105,11 +221,12 @@ export function updateCamera(dt) {
   }
   camera.x0 = camera.x - CFG.VIEW_W / 2;
   camera.y0 = camera.y - CFG.VIEW_H / 2;
-  /* LE SOL DE LA VUE SUIT LA CAMERA. Ce qui peint la vue entiere — le fond sous
-     le decor, la grille de 20 m — ne peut pas se couper par cellule : il prend la
-     teinte de la region ou l on est, et il change en marchant. Le sol lui-meme se
-     peint par cellule (`solDe`), donc la frontiere reste franche au bon endroit. */
-  sol = solLoi(loiCourante());
+  /* LE SOL DE LA VUE SUIT LA CAMERA, ET IL FOND. Ce qui peint la vue entiere — le
+     fond sous le decor, la grille de 20 m — ne peut pas se couper par cellule. Il
+     basculait donc d un coup au passage d une frontiere, sur TOUTE la surface,
+     pendant que le sol lui-meme fondait : `melerSol` lui donne le meme melange,
+     lu au point de la camera. */
+  sol = melerSol(camera.x, camera.y);
   applyCamera();
   if (PERF) { window.__cam = camera; window.__pred = predicted; }
 }
@@ -257,11 +374,6 @@ export function cadreOf(id) {
    differemment sur le meme ecran, c'est le defaut le plus visible d'un rendu 2D.
    Le relief RADIAL de `drawObstacles` reste : c'est la CAMERA, pas la lumiere,
    et les deux coexistent — c'est ce que fait la 2D haut de gamme. */
-// LA MAILLE DE LA CARTE : une cellule fait exactement une vue. Le rendu en a
-// besoin pour peindre le sol par cellule sans reimporter la geometrie.
-export function celluleW() { return biome.cw ?? CFG.VIEW_W; }
-export function celluleH() { return biome.ch ?? CFG.VIEW_H; }
-
 /* LE THEME DE LA CARTE, ET IL EST LE MEME PARTOUT. Une carte est d UN theme ;
    ce qui change d une region a l autre est la loi d implantation, pas le monde.
    Il n y a donc plus de « lieu d un point » : `lieuKeyAt`, `skinAt` et

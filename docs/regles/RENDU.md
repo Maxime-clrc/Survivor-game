@@ -508,6 +508,77 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 - **LE SEUIL EST SUPPRIMÉ.** Il déclarait la couture entre deux lieux bord à
   bord ; un thème par carte, plus de couture, plus de pièce à poser.
 
+#### La frontière de deux régions n'est pas une ligne
+
+- **`loiAt` REND UN ENTIER, ET C'EST TOUT LE DÉFAUT.** La région d'un point était
+  `lois[cellule]`, avec une cellule de 1600 × 900 — **une vue**. Une fonction en
+  escalier sur cette grille produit une frontière **axiale, droite, longue d'au
+  moins un écran**, et les cinq choses qui la lisent — teinte du sol, matière du
+  sol, densité du semis, matière des traces, taux de baie — basculaient **au même
+  pixel**. C'est la synchronisation qui faisait le patchwork, pas l'écart de
+  chaque axe. Le bruit de `districtsDe` déplace l'appartenance d'une **cellule**,
+  jamais d'un pixel.
+- **`poidsAt(b, x, y, poids, durete)` REND UN VECTEUR**, et c'est le point de
+  passage unique du mélange. Au centre d'une région un seul poids vaut 1 —
+  **l'identité reste entière, c'est la contrainte** : on borde le biome, on ne le
+  délave pas. Sur une frontière deux poids se partagent l'unité ; à un coin de
+  trois régions, trois. Le voisinage est le 2 × 2 des centres de cellule, donc
+  **une jonction triple n'est pas un cas particulier** — trois transitions
+  indépendantes en fabriqueraient une quatrième couture au centre.
+- **LE NOYAU A UN PLATEAU**, et c'est ce qui sépare « mélanger » de « délaver ».
+  Un noyau bilinéaire ordinaire fondrait sur une cellule **entière**, donc pur
+  nulle part sauf au centre exact. Il vaut 1 jusqu'à `0,5 − LARGE` et 0 au-delà de
+  `0,5 + LARGE`. Les deux noyaux d'un axe somment à 1 **exactement** — `smoothstep`
+  est antisymétrique autour de ½ —, donc la normalisation garde, elle ne rattrape
+  pas.
+- **LE GAUCHISSEMENT EST CE QUI TUE LA DROITE.** On ne déforme pas la frontière,
+  on déplace le **point d'échantillonnage** avant de la lire : deux octaves de
+  bruit de valeur, donc une limite irrégulière à deux échelles. Sans lui, le
+  plateau ne fait qu'épaissir une droite — et une droite épaisse reste une droite.
+  `pointMel` est sorti de `poidsAt` pour que ce qui doit s'accorder avec la
+  frontière **sans** peser les régions lise le même point déplacé : deux
+  gauchissements différents dessineraient deux limites.
+- **LA LARGEUR SUIT LA PAIRE, ET ELLE SE RÈGLE PAR UN EXPOSANT.** Une largeur
+  unique se trompe des deux côtés : deux régions de même teinte n'ont rien à
+  fondre sur 768 px, deux palettes éloignées en demandent plus. Un exposant sur le
+  vecteur déplace la mi-pente sans toucher aux bouts, donc **le noyau n'a pas à
+  connaître la paire**. `biomes.js` ne dépend de **rien** : ce qui sépare deux
+  régions se lit dans la palette, c'est donc l'appelant (`stage.js`) qui construit
+  la table.
+- **LE SOL SE PEINT PAR COUCHE DE RÉGION, PLUS PAR CELLULE.** Un motif est un
+  `fillStyle`, il n'a pas d'opacité par pixel : on peint la région entière hors
+  écran et on la ramène à travers un **masque**. Le masque est grossier (un texel
+  pour 32 px) et c'est le calcul qui le permet — le champ de poids est lisse et de
+  très basse fréquence, donc l'interpolation bilinéaire du blit **est** le fondu.
+  - **La première couche est opaque, les suivantes ont `w / S`.** Empiler k couches
+    à leur poids laisserait passer le fond **entre** elles : `a1 + a2 = 1` ne dit
+    rien de `(1 − a1)(1 − a2)`, qui vaut `a1 × a2`. Avec l'opacité courante — `S`
+    étant la somme des poids déjà posées — le résultat est exactement la moyenne
+    pondérée. C'est pour ça que `loisEnVue` met la région de la caméra **en tête**.
+  - **La marge de `loisEnVue` n'est pas la vue.** Un point du bord lit son
+    voisinage à travers le gauchissement **puis** le noyau : une cellule qui ne
+    touche pas la vue peut y peser, et l'oublier fait un trou de couche — le fond
+    nu, sur une bande.
+  - **Une seule région en vue ne paie rien** : deux `fillRect`, le chemin d'avant
+    au pixel. C'est le cas au centre d'un biome, donc le plus fréquent, et c'est
+    aussi ce qui garantit qu'un centre reste pur.
+  - Le motif reste **ancré à l'origine du monde**, couche comprise : elle porte la
+    transformation du canvas courant, donc la période de la tuile ne se décale pas
+    d'un pixel entre les deux.
+- **UN TAUX EST UNE QUANTITÉ, DONC IL SE MÉLANGE.** `tauxBaie` lisait la loi de la
+  cellule : les baies apparaissaient d'un coup à la frontière, et une verrière qui
+  s'arrête à la règle est le plus visible des raccords. La moyenne pondérée les
+  fait s'éclaircir en approchant, et le seuil aléatoire qui la lit n'a rien à
+  savoir du mélange.
+- **CE QUI PEINT LA VUE ENTIÈRE FOND AUSSI.** La grille de 20 m et le fond sous le
+  décor prennent la teinte de la région de la caméra : elle basculait donc d'un
+  coup sur **toute** la surface pendant que le sol, lui, fondait. `melerSol` lui
+  donne le même mélange, lu au point de la caméra — et `loiCourante`, que le
+  bandeau **nomme**, rend la dominante du mélange et non la loi de la cellule,
+  sans quoi le nom changeait au milieu du biome précédent.
+- **`solDe`, `celluleW` et `celluleH` sont supprimés** : le sol ne se peint plus
+  par cellule, et leur seule lecture est morte avec.
+
 #### Ce qui fait qu'une région SE VOIT
 
 Une loi d'implantation ne déplace que des blocs, et à une dizaine de blocs par

@@ -10617,6 +10617,55 @@
                   quota — une Friche presque noire est JUSTE, c est un lieu
                   abandonne. Vingt-huit regions sur soixante portent une source.
 
+    0.43.39 lot 40 LE SOL D UNE REGION S ARRETAIT A LA REGLE. Rapport de terrain,
+                  capture a l appui : trois regions se rencontrent et on voit DEUX
+                  DROITES — texture, densite, motifs et decoration basculent au
+                  MEME pixel.
+                  LA CAUSE EST UNE SEULE LIGNE. `loiAt` rend `lois[cellule]` avec
+                  une cellule de 1600 x 900, c est-a-dire UNE VUE : une fonction en
+                  escalier sur cette grille donne une frontiere AXIALE, DROITE,
+                  longue d au moins un ecran, et il n existe aucune zone de
+                  transition — la notion n est ecrite nulle part. Le bruit de
+                  `districtsDe` deplace l appartenance d une CELLULE, jamais d un
+                  pixel. Cinq axes basculaient ensemble : teinte (dE 11,1), matiere,
+                  densite du semis (x2,6), matiere des traces, taux de baie. C est
+                  la SYNCHRONISATION qui fait le patchwork.
+                  `poidsAt` REND UN VECTEUR. Au centre d une region un seul poids
+                  vaut 1 — l identite reste ENTIERE, on borde le biome au lieu de le
+                  delaver. Le voisinage est le 2x2 des centres de cellule, donc UNE
+                  JONCTION TRIPLE N EST PAS UN CAS PARTICULIER : trois transitions
+                  independantes en feraient une quatrieme couture au centre. Mesure
+                  sur 10 graines : 100 % des centres purs, ZERO ilot, 14,8 % de
+                  l arene en transition.
+                  LE NOYAU A UN PLATEAU, et c est ce qui separe melanger de
+                  delaver — un noyau bilineaire fondrait sur une cellule entiere,
+                  donc pur nulle part. Les deux noyaux d un axe somment a 1
+                  EXACTEMENT. LE GAUCHISSEMENT TUE LA DROITE : on deplace le point
+                  d ECHANTILLONNAGE, pas la frontiere, et sans lui le plateau ne
+                  fait qu epaissir une droite. Errance mesuree : +/- 190 px.
+                  LA LARGEUR SUIT LA PAIRE. Une largeur unique se trompe des deux
+                  cotes ; l ecart se lit sur la teinte du sol — le seul axe partage
+                  par les deux cotes — et pilote un EXPOSANT, qui deplace la
+                  mi-pente sans toucher aux bouts. `biomes.js` ne depend de rien :
+                  la table se construit dans `stage.js`.
+                  LE SOL SE PEINT PAR COUCHE. Un motif est un `fillStyle`, il n a
+                  pas d opacite par pixel : on peint la region entiere hors ecran et
+                  on la ramene par un MASQUE de 52 x 32 texels — le champ est lisse
+                  et de tres basse frequence, donc l interpolation du blit EST le
+                  fondu. La premiere couche est OPAQUE et les suivantes ont `w / S` :
+                  a leur poids nu, `a1 + a2 = 1` ne dit rien de `(1-a1)(1-a2)`, qui
+                  vaut `a1 x a2`, et le fond passe entre les couches. Une seule
+                  region en vue ne paie RIEN — le chemin d avant au pixel.
+                  Cout mesure camera POSEE sur la frontiere, 180 images : 5,60 ms
+                  mediane avant, 5,50 apres.
+                  Fondent aussi : le taux de baie (une quantite se melange), la
+                  grille et le fond de vue (ils basculaient d un coup sur TOUTE la
+                  surface), et le bandeau, qui nomme la dominante du melange.
+                  Supprimes : `solDe`, `celluleW`, `celluleH`.
+                  `verifierMelange` : centre pur, poids sommant a un, et frontiere
+                  qui n est pas une droite — mesuree en comptant les abscisses
+                  distinctes ou la dominante bascule. 62 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10625,4 +10674,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.38";
+export const VERSION = "0.43.39";
