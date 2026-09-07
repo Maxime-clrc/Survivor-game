@@ -10370,6 +10370,29 @@
                   40 regions, 40 signatures. Usine 9, Fonderie 6, Friche 9,
                   Nebuleuse 8, Secteur 8.
 
+    0.43.28 lot 29 LA FONDERIE PASSE DE SIX REGIONS A NEUF. La modelerie est la
+                  seule piece FROIDE ET SECHE du theme : on y taille les modeles
+                  avant de fondre quoi que ce soit, et c est ce qui la rend
+                  reconnaissable la ou tout brule. Elle reprend le PALETTIER du
+                  magasin de l Usine — deux themes, une silhouette, du bois au
+                  lieu de l acier. La cabine d ebarbage est le seul objet du
+                  depot dont la fonction soit de CONTENIR ce qui gicle et non de
+                  bloquer un passage. Le parc a brames est le contraire du parc a
+                  minerai : meme fonction, deux etats de la matiere, et la
+                  silhouette le dit — un tas n a pas d arete, une pile n a que
+                  ca.
+                  AJOUTER DES REGIONS LEGERES FAIT BAISSER LE BUDGET DU THEME, et
+                  c est ce qui regle le defaut du lot 23 a la source : la
+                  Fonderie passe de 9,46 % a 8,29 % de bati en cauchemar pour un
+                  plafond de 10. Elle n y touche plus, donc `buildBiome` ne jette
+                  plus rien et aucune signature ne disparait par manque de place.
+                  Une allee de rayonnage ou l on ne passe pas n est pas une
+                  allee : les gabarits espaces de 108 px pour 32 de haut ne
+                  laissaient que 76 px, sous `PASSAGE_MIN`. Ils passent a 126 px
+                  d ecart, soit 94 px libres.
+                  43 regions, 43 signatures. Usine 9, Fonderie 9, Friche 9,
+                  Nebuleuse 8, Secteur 8.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10378,4 +10401,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.27";
+export const VERSION = "0.43.28";

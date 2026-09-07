@@ -8,6 +8,49 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Fonderie passe de six régions à neuf (0.43.28)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la modelerie** | `marque` | rayonnage de gabarits | peigne de rayonnages |
+| **l'ébarbage** | `technique` | cabine d'ébarbage | nef de cabines |
+| **le parc à brames** | `ajoure` | brame empilée | crible de piles |
+
+- **La modelerie est la seule pièce froide et sèche de la Fonderie.** On y taille
+  les modèles *avant* de fondre quoi que ce soit : rien n'y est chaud, rien n'y
+  coule, et c'est exactement ce qui la rend reconnaissable dans un thème où tout
+  brûle. Elle reprend le **palettier du magasin de l'Usine** — deux thèmes, une
+  silhouette, deux matières : du bois verni au lieu de l'acier.
+- **La cabine d'ébarbage est le seul objet du dépôt dont la fonction soit de
+  CONTENIR** ce qui gicle, et non de bloquer un passage. Fermée sur trois côtés,
+  ouverte sur un — et le côté ouvert se lit parce qu'il n'a ni paroi ni liseré.
+- **Le parc à brames est le contraire du parc à minerai** : même fonction, deux
+  états de la matière, et la silhouette le dit — un tas n'a pas d'arête, une pile
+  n'a que ça.
+
+**AJOUTER DES RÉGIONS LÉGÈRES FAIT BAISSER LE BUDGET DU THÈME**, et c'est ce qui
+règle le défaut du lot 23 à la source :
+
+| Fonderie, bâti de l'arène | normal | cauchemar |
+|---|---:|---:|
+| 0.43.22 (six régions) | 8,52 % | **9,46 %** |
+| 0.43.28 (neuf régions) | 7,58 % | **8,29 %** |
+
+Le plafond est à 10 % : la Fonderie n'y touche plus, donc `buildBiome` ne jette
+plus rien et aucune signature ne disparaît par manque de place.
+
+**Une allée de rayonnage où l'on ne passe pas n'est pas une allée.** Les gabarits
+étaient espacés de 108 px pour une hauteur de 32 : **76 px libres**, sous
+`PASSAGE_MIN`. Ils passent à 126 px d'écart, soit **94 px** libres.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| 0.43.27 | 40 | 40 |
+| 0.43.28 | **43** | **43** |
+
+Usine 9, Fonderie 9, Friche 9, Nébuleuse 8, Secteur 8. Pire Jaccard bâti :
+**0,50**. La plus basse en vues signées : le puits à **93,5 %**.
+
 ### La Friche passe de six régions à neuf (0.43.27)
 
 | région | sol | famille à elle | trame |

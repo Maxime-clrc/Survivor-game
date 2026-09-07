@@ -156,7 +156,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60,
              B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64,
              B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67,
-             B_WAGON = 68, B_BALLE = 69, B_FERME = 70;
+             B_WAGON = 68, B_BALLE = 69, B_FERME = 70,
+             B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -239,6 +240,9 @@ export const BLOCS = [
   { key: "wagon", lieu: "friche" },
   { key: "balle", lieu: "friche" },
   { key: "ferme", lieu: "friche" },
+  { key: "gabarit", lieu: "fonderie" },
+  { key: "cabine", lieu: "fonderie" },
+  { key: "brame", lieu: "fonderie" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -713,6 +717,50 @@ const OBSTACLES = {
     /* LE PUITS — une masse centrale massive, le reste degage. Le seul lieu du
        theme ou le centre est interdit : on tourne autour au lieu de le traverser,
        et la horde arrive donc toujours par un cote qu on ne regarde pas. */
+    /* LA MODELERIE — LA SEULE PIECE FROIDE ET SECHE DE LA FONDERIE. On y taille
+       les modeles AVANT de fondre quoi que ce soit : rien n y est chaud, rien
+       n y coule, et c est exactement ce qui la rend reconnaissable dans un theme
+       ou tout brule. Des rayonnages de gabarits, hauts et minces, et le seul
+       marquage au sol du theme.
+       Elle reprend le PALETTIER du magasin de l Usine : deux themes, une
+       silhouette, deux matieres — c est la mutualisation que le dossier demande. */
+    { cle: "modelerie", nom: "la modelerie", label: "La modelerie", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      // ECART DE 126 PX ENTRE DEUX RAYONNAGES, soit 94 px libres : `PASSAGE_MIN`
+      // plus une marge. A 108 px d ecart il n en restait que 76, et une allee de
+      // rayonnage ou l on ne passe pas n est pas une allee.
+      { x: 0.28, y: 0.24, w: 0.120, h: 0.036, kind: B_GABARIT },
+      { x: 0.28, y: 0.38, w: 0.120, h: 0.036, kind: B_GABARIT },
+      { x: 0.72, y: 0.76, w: 0.120, h: 0.036, kind: B_GABARIT, min: 1 },
+      { x: 0.72, y: 0.62, w: 0.120, h: 0.036, kind: B_GABARIT, min: 1 },
+      { x: 0.28, y: 0.52, w: 0.120, h: 0.036, kind: B_GABARIT, min: 2 },
+      { x: 0.70, y: 0.24, w: 0.070, h: 0.070, kind: B_CUVE },
+      { x: 0.30, y: 0.76, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+    ] },
+    /* L EBARBAGE — ON FINIT LA PIECE, DONC ON LA CASSE UN PEU. Des cabines
+       fermees sur trois cotes : le seul endroit du depot ou une masse batie
+       serve a CONTENIR ce qui gicle plutot qu a bloquer un passage. Le sol est
+       jonche d eclats, et c est la seule region du theme dont la trace accroche
+       la lumiere au lieu de la boire. */
+    { cle: "ebarbage", nom: "l ebarbage", label: "L'ébarbage", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.30, y: 0.24, w: 0.080, h: 0.100, kind: B_CABINE },
+      { x: 0.70, y: 0.76, w: 0.080, h: 0.100, kind: B_CABINE, min: 1 },
+      { x: 0.30, y: 0.76, w: 0.080, h: 0.100, kind: B_CABINE, min: 1 },
+      { x: 0.70, y: 0.24, w: 0.080, h: 0.100, kind: B_CABINE, min: 2 },
+      { x: 0.50, y: 0.14, w: 0.260, h: 0.048, kind: B_CONDUITE },
+    ] },
+    /* LE PARC A BRAMES — DES MASSES POSEES A PLAT, ET ELLES SONT ENCORE TIEDES.
+       C est l aval du laminoir : ce qui en sort attend la, empile, et la seule
+       chose qui bouge est la chaleur qui s en va. Un parc a brames est le
+       contraire du parc a minerai — meme fonction, deux etats de la matiere, et
+       la silhouette le dit : un tas est mou, une pile est cassante. */
+    { cle: "brames", nom: "le parc a brames", label: "Le parc à brames", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.26, y: 0.26, w: 0.090, h: 0.060, kind: B_BRAME },
+      { x: 0.74, y: 0.74, w: 0.090, h: 0.060, kind: B_BRAME },
+      { x: 0.26, y: 0.74, w: 0.090, h: 0.060, kind: B_BRAME, min: 1 },
+      { x: 0.74, y: 0.26, w: 0.090, h: 0.060, kind: B_BRAME, min: 1 },
+      { x: 0.26, y: 0.50, w: 0.090, h: 0.060, kind: B_BRAME, min: 2 },
+      { x: 0.64, y: 0.52, w: 0.120, h: 0.190, kind: B_FOUR },
+    ] },
     { cle: "puits", nom: "le puits", label: "Le puits", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.35, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR },
       /* LES DEUX FOURS SE TRAVERSAIENT DE 112 PX SUR 171. La masse restait un
@@ -1506,6 +1554,13 @@ const TRAMES = {
     // un parc est un CRIBLE de tas : le meme reseau que les cuves, en mou.
     minerai: { type: TR_CRIBLE, kind: B_TAS },
     puits: { type: TR_COURONNE, kind: B_FOUR },
+    // une modelerie est un PEIGNE de rayonnages, comme le magasin de l Usine.
+    modelerie: { type: TR_PEIGNE, kind: B_GABARIT },
+    // l ebarbage est une HALLE : deux parois de cabines et un fond.
+    ebarbage: { type: TR_NEF, kind: B_CABINE },
+    // un parc a brames est un CRIBLE, comme le parc a minerai — et c est la
+    // famille qui separe le mou du cassant.
+    brames: { type: TR_CRIBLE, kind: B_BRAME },
   },
   friche: {
     champ: { type: TR_CRIBLE, kind: B_RUINE },

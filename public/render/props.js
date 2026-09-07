@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -250,7 +250,10 @@ const QUARTIER = {
               // le minerai n est pas encore fondu : c est du STOCK, pas du feu.
               [B_TAS]: 2,
               // le convertisseur VERSE : le quartier de la coulee.
-              [B_CONVERTISSEUR]: 0 },
+              [B_CONVERTISSEUR]: 0,
+              // on MET EN FORME dans une modelerie, et ce qui SORT est ebarbe
+              // puis empile : deux fois le quartier de l aval.
+              [B_GABARIT]: 1, [B_CABINE]: 2, [B_BRAME]: 2 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
@@ -2000,6 +2003,13 @@ const AIR = {
     // le parc a minerai ne tire QUE ce qu on jette et ce qui sert a manier.
     minerai: { dens: 0.94, ech: [0.86, 0.80], zones: [3], matieres: [TRACE_POUSSIERE] },
     puits: { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
+    // la modelerie ne tire QUE la mise en forme : rien n y coule et rien n y
+    // sort. C est le seul inventaire SEC du theme.
+    modelerie: { dens: 0.86, ech: [0.62, 0.70], zones: [1], matieres: [TRACE_POUSSIERE, TRACE_MARQUAGE] },
+    // l ebarbage ne tire QUE ce qui sort, et son sol accroche la lumiere.
+    ebarbage: { dens: 1.10, ech: [0.58, 0.54], zones: [2], matieres: [TRACE_ECLATS, TRACE_ROUSSI] },
+    // un parc a brames tire la mise en forme et le REBUT : les chutes de coupe.
+    brames: { dens: 0.74, ech: [0.88, 0.82], zones: [1, 3], matieres: [TRACE_RAYURES, TRACE_FISSURES] },
   },
   friche: {
     // ce qui repousse suit les JOINTS du sol : sans les lignes, c est de la

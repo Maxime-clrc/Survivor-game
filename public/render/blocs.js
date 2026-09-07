@@ -15,7 +15,8 @@ import {
   B_ROCHE, B_SAS, B_ABRIBUS,
   B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE,
   B_CULTURE, B_TORE, B_PARABOLE,
-  B_WAGON, B_BALLE, B_FERME, gabaritsDe,
+  B_WAGON, B_BALLE, B_FERME,
+  B_GABARIT, B_CABINE, B_BRAME, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -100,6 +101,7 @@ const HABILLAGE = {
   vehicule, tourniquet, barriere, guerite,
   bacCulture, tore, paraboleSol,
   wagon, balle, fermeTombee,
+  gabarit, cabine, brame,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -149,6 +151,12 @@ const BLOC = {
     [B_LAMINOIR]: { sil: "caisson", hab: "laminoir" },
     [B_TAS]: { sil: "masse_molle", hab: "tas" },
     [B_CONVERTISSEUR]: { sil: "caisson", hab: "convertisseur" },
+    // LE MEME PALETTIER QUE LE MAGASIN DE L USINE, une autre matiere : deux
+    // themes, une silhouette, et c est du bois au lieu de l acier.
+    [B_GABARIT]: { sil: "palettier", hab: "gabarit" },
+    [B_CABINE]: { sil: "caisson", hab: "cabine" },
+    // LA MEME PILE QUE LA CASSE ET LE MAGASIN : ce qui s empile a des aretes.
+    [B_BRAME]: { sil: "pile", hab: "brame" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -3325,6 +3333,105 @@ function fermeTombee(o, S) {
     haut = !haut;
   }
   ctx.stroke();
+}
+
+
+/* LE RAYONNAGE DE GABARITS — DU BOIS, ET C EST LA SEULE MATIERE TIEDE DU THEME.
+   Un modele de fonderie est taille dans du bois verni, range debout, et rien de
+   tout ca ne brule : la couleur suffit a dire qu on est AVANT la coulee. Meme
+   silhouette que le palettier du magasin, une autre matiere. */
+function gabarit(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#6a4a2c", 0.46);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LES MONTANTS, reguliers : une etagere se lit a ses appuis.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.52);
+  for (let u = -L / 2 + 4; u < L / 2 - 2; u += 14) {
+    if (long) ctx.fillRect(u, -h / 2, 3, h);
+    else ctx.fillRect(-w / 2, u, w, 3);
+  }
+  // LES MODELES : des formes claires, chacune differente — c est un atelier de
+  // piece unique, pas un stock.
+  for (let i = 0; i < 5; i++) {
+    const u = -L / 2 + 8 + i * (L - 14) / 5;
+    const t = 3 + ((s >> (i * 2)) & 3) * 1.6;
+    ctx.fillStyle = alpha("#c8a878", 0.24 + ((s >> i) & 1) * 0.10);
+    if (long) ctx.fillRect(u, -h * 0.22, t, h * 0.44);
+    else ctx.fillRect(-w * 0.22, u, w * 0.44, t);
+  }
+}
+
+/* LA CABINE D EBARBAGE — FERMEE SUR TROIS COTES, OUVERTE SUR UN. Elle ne bloque
+   pas un passage : elle CONTIENT ce qui gicle, et c est le seul objet du depot
+   dont ce soit la fonction. L ouverture se lit parce que le quatrieme cote n a
+   ni paroi ni liseré — juste le sol qui continue. */
+function cabine(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const cote = s & 3;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.44);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LES TROIS PAROIS, epaisses ; la quatrieme est absente.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.60);
+  if (cote !== 0) ctx.fillRect(-w / 2, -h / 2, w, 5);
+  if (cote !== 1) ctx.fillRect(-w / 2, h / 2 - 5, w, 5);
+  if (cote !== 2) ctx.fillRect(-w / 2, -h / 2, 5, h);
+  if (cote !== 3) ctx.fillRect(w / 2 - 5, -h / 2, 5, h);
+  // LE RIDEAU de lamelles, du cote ouvert : on entre, mais pas la lumiere.
+  ctx.strokeStyle = alpha("#8a7a6a", 0.24);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const u = -0.4 + i * 0.16;
+    if (cote === 0) { ctx.moveTo(-w / 2 + 4 + i * (w - 8) / 6, -h / 2 + 1); ctx.lineTo(-w / 2 + 4 + i * (w - 8) / 6, -h / 2 + 6); }
+    else if (cote === 1) { ctx.moveTo(-w / 2 + 4 + i * (w - 8) / 6, h / 2 - 1); ctx.lineTo(-w / 2 + 4 + i * (w - 8) / 6, h / 2 - 6); }
+    else if (cote === 2) { ctx.moveTo(-w / 2 + 1, -h / 2 + 4 + i * (h - 8) / 6); ctx.lineTo(-w / 2 + 6, -h / 2 + 4 + i * (h - 8) / 6); }
+    else { ctx.moveTo(w / 2 - 1, -h / 2 + 4 + i * (h - 8) / 6); ctx.lineTo(w / 2 - 6, -h / 2 + 4 + i * (h - 8) / 6); }
+  }
+  ctx.stroke();
+  // la gerbe : quelques eclats clairs au fond, et rien de plus — un telegraphe
+  // aurait un debut et une echeance, ce canal appartient au boss.
+  ctx.fillStyle = alpha(S.emis, 0.16);
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(((s >> (i + 3)) & 7) - 4, ((s >> (i + 5)) & 7) - 4, 2, 2);
+  }
+}
+
+/* LA BRAME — UNE MASSE POSEE A PLAT, ET ELLE EST ENCORE TIEDE. Le parc a minerai
+   est mou et sombre, celui-ci est CASSANT et clair : meme fonction, deux etats
+   de la matiere, et la silhouette le dit — un tas n a pas d arete, une pile n a
+   que ca. Le degrade de chaleur va du coeur vers le bord, parce qu une brame
+   refroidit par les cotes. */
+function brame(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const g = ctx.createLinearGradient(long ? -w / 2 : 0, long ? 0 : -h / 2,
+                                     long ? w / 2 : 0, long ? 0 : h / 2);
+  g.addColorStop(0, alpha("#3a3630", 0.62));
+  g.addColorStop(0.5, alpha("#5a4a3a", 0.58));
+  g.addColorStop(1, alpha("#3a3630", 0.62));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LES TRANCHES : trois ou quatre brames empilees, chacune son arete claire.
+  const n = 3 + (s & 1);
+  ctx.strokeStyle = alpha("#a89880", 0.24);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 1; i < n; i++) {
+    const u = -1 + (2 / n) * i;
+    if (long) { ctx.moveTo(-w / 2 + 3, u * h / 2 * 0.9); ctx.lineTo(w / 2 - 3, u * h / 2 * 0.9); }
+    else { ctx.moveTo(u * w / 2 * 0.9, -h / 2 + 3); ctx.lineTo(u * w / 2 * 0.9, h / 2 - 3); }
+  }
+  ctx.stroke();
+  // la CHALEUR restante, au coeur seulement : elle part par les cotes.
+  ctx.fillStyle = alpha(S.emis, 0.10 + (s & 3) * 0.02);
+  ctx.fillRect(-w * 0.18, -h * 0.18, w * 0.36, h * 0.36);
 }
 
 function coque(o, S) {

@@ -1482,6 +1482,9 @@ const SOL_REGION = {
     // le parc a minerai est POUDREUX : le seul sol rouge du depot, et il tient
     // sa couleur de ce qui est stocke dessus.
     laminoir: T_MINERAL, minerai: T_POUDRE, puits: T_DALLE,
+    // le seul sol MARQUE du theme (on trace au sol la ou on ne fond pas), le
+    // seul TECHNIQUE (une cabine est un appareil) et le seul AJOURE.
+    modelerie: T_MARQUE, ebarbage: T_TECHNIQUE, brames: T_AJOURE,
   },
   /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE
      BRUTE — le seul sol de la Friche qui ne soit pas encore abime. */
