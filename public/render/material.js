@@ -1468,7 +1468,11 @@ const SOL_REGION = {
   /* LA MAINTENANCE EST HUILEE, DONC ELLE RENVOIE : `mouille` n est pas que de
      l eau, c est une surface qui reflete — une flaque d huile fait exactement ce
      qu il faut. Les utilites sont sur GRAVIER, le seul sol non lisse du theme. */
-  usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT],
+  /* LE TRAITEMENT EST AJOURE — on marche sur le caillebotis d une passerelle,
+     pas sur du beton — et LA ZONE ROBOTISEE est le seul sol NEUF du depot :
+     personne n y marche, donc rien ne l use. */
+  usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT,
+              T_AJOURE, T_TECHNIQUE],
   // le laminoir est couvert de CALAMINE : un sol qui scintille par plaques.
   fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_MINERAL, T_DALLE],
   /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE

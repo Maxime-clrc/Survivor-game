@@ -8,7 +8,8 @@ import {
   B_BANCHE, B_EPAVES, B_GRILLAGE, B_POTEAU,
   B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
   B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE,
-  B_LAMINOIR, B_MEMBRURE, B_BORDE, B_ALVEOLE, B_COURSIVE, gabaritsDe,
+  B_LAMINOIR, B_MEMBRURE, B_BORDE, B_ALVEOLE, B_COURSIVE,
+  B_BAC, B_HOTTE, B_CAGE, B_PORTIQUE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -86,6 +87,7 @@ const HABILLAGE = {
   bras, coque, cloison, console: console_,
   aveugle, escalier, monolithe, etal, fosse, poutre,
   laminoir, membrure, borde, alveole, coursive,
+  bac, hotte, cage, portique,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -101,6 +103,11 @@ const BLOC = {
     [B_PILE]: { sil: "pile", hab: "pile" },
     [B_QUAI]: { sil: "quai", hab: "quai" },
     [B_POUTRE]: { sil: "caisson", hab: "poutre" },
+    // LE SECOND CREUX DU DEPOT, et le premier a l Usine.
+    [B_BAC]: { sil: "nappe", hab: "bac", creux: true },
+    [B_HOTTE]: { sil: "caisson", hab: "hotte" },
+    [B_CAGE]: { sil: "cadre", hab: "cage" },
+    [B_PORTIQUE]: { sil: "barre", hab: "portique" },
     // LE MEME CHASSIS QUE LA FRICHE, UNE AUTRE MATIERE : premier couple du
     // depot a servir deux themes.
     [B_REMORQUE]: { sil: "chassis", hab: "remorque" },
@@ -3051,6 +3058,140 @@ function coursive(o, S) {
   if (long) { ctx.moveTo(-w * 0.24, 0); ctx.lineTo(w * 0.10, 0); }
   else { ctx.moveTo(0, -h * 0.24); ctx.lineTo(0, h * 0.10); }
   ctx.stroke();
+}
+
+
+/* LE BAC DE TREMPE — LE SEUL CREUX DE L USINE. Meme famille de dessin que la
+   fosse de la Fonderie : parois eclairees du cote oppose a la lumiere, fond qui
+   s assombrit. Ce qui change est le CONTENU — un bain de traitement, pas du
+   metal en fusion : une nappe froide, opaque, avec sa mousse au bord. */
+function bac(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const p = Math.min(11, w * 0.14, h * 0.14);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(w, h) * 0.5);
+  g.addColorStop(0, alpha("#000000", 0.88));
+  g.addColorStop(1, alpha("#000000", 0.56));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const d = lumDir();
+  ctx.fillStyle = alpha(S.blocEdge, 0.16);
+  if (d[0] > 0) ctx.fillRect(-w / 2, -h / 2, p, h); else ctx.fillRect(w / 2 - p, -h / 2, p, h);
+  if (d[1] > 0) ctx.fillRect(-w / 2, -h / 2, w, p); else ctx.fillRect(-w / 2, h / 2 - p, w, p);
+  // LE BAIN : une nappe unie, froide, sans reflet — un bain de traitement ne
+  // brille pas, c est ce qui le separe d une flaque.
+  ctx.fillStyle = alpha(["#1d3a34", "#2a2f18", "#132a3a"][s % 3], 0.62);
+  ctx.fillRect(-w / 2 + p, -h / 2 + p, w - p * 2, h - p * 2);
+  // LA MOUSSE au bord, seule chose claire : elle dit que ca a servi.
+  ctx.fillStyle = alpha("#d8cfae", 0.12);
+  ctx.fillRect(-w / 2 + p, -h / 2 + p, w - p * 2, Math.max(2, h * 0.08));
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+}
+
+/* LA HOTTE — CE QUI EST AU-DESSUS. Un caisson d aspiration suspendu : son
+   contour est franc, son interieur est VIDE et sombre, et une gaine en sort. Ce
+   qui la fait lire est qu elle ne touche pas le sol — pas d ombre de contact,
+   juste un liseré. */
+function hotte(o, S) {
+  const w = o.w, h = o.h;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.26);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // les LAMES d aspiration, serrees, tres sombres : on voit a travers et il n y
+  // a rien derriere.
+  ctx.strokeStyle = alpha("#000000", 0.38);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const long = w >= h, L = long ? w : h;
+  for (let u = -L / 2 + 6; u < L / 2 - 3; u += 6) {
+    if (long) { ctx.moveTo(u, -h / 2 + 4); ctx.lineTo(u, h / 2 - 4); }
+    else { ctx.moveTo(-w / 2 + 4, u); ctx.lineTo(w / 2 - 4, u); }
+  }
+  ctx.stroke();
+  // LA GAINE, un tube court qui sort d un angle : elle va quelque part.
+  ctx.fillStyle = alpha(S.blocEdge, 0.24);
+  ctx.fillRect(w / 2 - 4, -h * 0.16, 7, h * 0.32);
+  ctx.strokeStyle = alpha(S.blocEdge, 0.34);
+  ctx.lineWidth = 1.8;
+  ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+}
+
+/* LA CAGE ROBOTISEE — UN GRILLAGE SERRE ET CE QUI TRAVAILLE DEDANS. Le grillage
+   est plus fin que celui des utilites — une cellule de robot se regarde de
+   pres — et il y a un BRAS a l interieur, replie, qui ne sort jamais. */
+function cage(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.strokeStyle = alpha(S.blocEdge, 0.12);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let u = -w / 2; u < w / 2; u += 5) {
+    ctx.moveTo(u, -h / 2); ctx.lineTo(u + 5, h / 2);
+    ctx.moveTo(u + 5, -h / 2); ctx.lineTo(u, h / 2);
+  }
+  ctx.stroke();
+  // LE BRAS, replie : un segment epais et un coude. Il est SOMBRE, la cage est
+  // claire — ce qui travaille se voit a travers ce qui protege.
+  ctx.strokeStyle = alpha(S.bloc, 0.66);
+  ctx.lineWidth = Math.max(3, Math.min(w, h) * 0.10);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  const a = ((s & 3) / 4) * Math.PI * 2;
+  ctx.moveTo(0, h * 0.22);
+  ctx.lineTo(Math.cos(a) * w * 0.18, h * 0.22 + Math.sin(a) * h * 0.18);
+  ctx.lineTo(Math.cos(a) * w * 0.30, -h * 0.10);
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  // le SOCLE, un disque au pied du bras.
+  ctx.fillStyle = alpha(S.bloc, 0.50);
+  ctx.beginPath(); ctx.arc(0, h * 0.22, Math.min(w, h) * 0.13, 0, Math.PI * 2); ctx.fill();
+  // le CADRE, franc : c est lui qui dit qu on ne passe pas.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.40);
+  ctx.lineWidth = 2.2;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // le voyant d etat, un point ambre en coin : la cellule est SOUS TENSION.
+  ctx.fillStyle = alpha(S.emis, 0.42);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, 3, 3);
+}
+
+/* LE PORTIQUE — IL ENJAMBE. Deux pieds francs et une poutre entre eux : le seul
+   objet de l Usine dont le MILIEU ne touche pas le sol, et c est ce qui le
+   separe d une barre. Le chariot est quelque part sur la poutre. */
+function portique(o, S) {
+  const w = o.w, h = o.h;
+  const long = w >= h;
+  const L = long ? w : h, E = long ? h : w;
+  // LA POUTRE, fine et claire : elle est en l air.
+  ctx.strokeStyle = alpha(S.blocEdge, 0.30);
+  ctx.lineWidth = Math.max(2, E * 0.30);
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); }
+  else { ctx.moveTo(0, -h / 2); ctx.lineTo(0, h / 2); }
+  ctx.stroke();
+  // LES PIEDS, aux deux bouts, pleins et sombres : eux touchent le sol.
+  ctx.fillStyle = alpha("#000000", 0.44);
+  const pw = Math.max(6, L * 0.06);
+  if (long) {
+    ctx.fillRect(-w / 2, -h / 2, pw, h);
+    ctx.fillRect(w / 2 - pw, -h / 2, pw, h);
+  } else {
+    ctx.fillRect(-w / 2, -h / 2, w, pw);
+    ctx.fillRect(-w / 2, h / 2 - pw, w, pw);
+  }
+  ctx.fillStyle = alpha(S.bloc, 0.46);
+  if (long) {
+    ctx.fillRect(-w / 2 + 1, -h / 2 + 1, pw - 2, h - 2);
+    ctx.fillRect(w / 2 - pw + 1, -h / 2 + 1, pw - 2, h - 2);
+  } else {
+    ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, pw - 2);
+    ctx.fillRect(-w / 2 + 1, h / 2 - pw + 1, w - 2, pw - 2);
+  }
+  // LE CHARIOT, un bloc sur la poutre, jamais au milieu.
+  ctx.fillStyle = alpha(S.blocEdge, 0.34);
+  const c = Math.max(4, L * 0.08);
+  if (long) ctx.fillRect(-w / 2 + L * 0.34, -E * 0.34, c, E * 0.68);
+  else ctx.fillRect(-E * 0.34, -h / 2 + L * 0.34, E * 0.68, c);
 }
 
 function conteneur(o, S) {

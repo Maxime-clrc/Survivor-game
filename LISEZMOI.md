@@ -8,6 +8,36 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La sixième primitive de trame, et l'Usine à neuf régions (0.43.18)
+
+**La FAILLE était déclarée dans le dossier et jamais posée.** Le `creux` existait
+depuis 0.43.12 — la fosse du puits — mais aucune trame ne traçait de saignée à
+l'échelle d'un quartier. **Le traitement de surface** la paie : une tranchée de
+bacs traverse la région, on la franchit en trois points, et c'est la seule trame
+du dépôt qui décrive une **absence**. Elle est 2,4 fois plus épaisse qu'un ruban
+et il n'y en a **qu'une** — deux tranchées parallèles feraient une bande
+impraticable entre elles.
+
+Et **la zone robotisée** : le seul sol du dépôt **sans usure**, parce que
+personne n'y marche. Un endroit propre dans une usine sale dit tout.
+
+| thème | régions | avec une signature |
+|---|---:|---:|
+| **usine** | **9** | **7** |
+| fonderie | 5 | 3 |
+| friche | 5 | 2 |
+| nébuleuse | 5 | 3 |
+| secteur | 5 | 4 |
+| **total** | **29** | **20** |
+
+**Le même défaut que `gabaritsDe`, une seconde fois, et il aurait pu durer.**
+`signatureVariante` lisait la pose **non dépliée** : une entrée oblique n'a ni
+`w` ni `h`, donc `o.w * o.h` rend `NaN`, `surf` devient `NaN`, et **les deux
+comparaisons de min et de max sont fausses pour un NaN** — l'entrée disparaissait
+de trois axes sur six **sans rien lever**. Symptôme : « le dégagement » et « le
+traitement » déclarés semblables à **13 %** alors que leurs densités réelles
+diffèrent de **36 %**. Un faux positif, mais qui masquait trois axes morts.
+
 ### Les cinq thèmes ont cinq régions (0.43.17)
 
 Fonderie, Nébuleuse et Secteur n'en avaient que quatre. Trois régions neuves :

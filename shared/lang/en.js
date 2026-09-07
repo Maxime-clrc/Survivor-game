@@ -1348,6 +1348,8 @@ export const EN = {
   "biome.usine.utilites": "The utilities",
   "biome.usine.degagement": "The clearing",
   "biome.usine.magasin": "The stores",
+  "biome.usine.traitement": "The plating line",
+  "biome.usine.robotisee": "The robot cell",
   "biome.usine.expedition": "The shipping bay",
   "biome.fonderie.coulee": "The casting hall",
   "biome.fonderie.sablerie": "The moulding floor",

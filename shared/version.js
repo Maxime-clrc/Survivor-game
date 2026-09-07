@@ -10135,6 +10135,26 @@
                   geyser ou la braise.
                   Dix-huit regions sur vingt-sept ont une signature.
 
+    0.43.18 lot 19 LA SIXIEME PRIMITIVE DE TRAME, ET L USINE A NEUF REGIONS. La
+                  FAILLE etait declaree dans le dossier et jamais posee : le
+                  `creux` existait depuis 0.43.12 mais aucune trame ne tracait de
+                  saignee a l echelle d un quartier. LE TRAITEMENT DE SURFACE la
+                  paie — une tranchee de bacs traverse la region, franchie en
+                  trois points. Elle est 2,4 fois plus epaisse qu un ruban et il
+                  n y en a QU UNE : deux tranchees paralleles feraient une bande
+                  impraticable entre elles.
+                  LA ZONE ROBOTISEE ouvre le seul sol du depot SANS USURE, parce
+                  que personne n y marche — un endroit propre dans une usine sale
+                  dit tout.
+                  LE MEME DEFAUT QUE `gabaritsDe`, UNE SECONDE FOIS.
+                  `signatureVariante` lisait la pose NON DEPLIEE : une entree
+                  oblique n a ni `w` ni `h`, donc `o.w * o.h` rend NaN, `surf`
+                  devient NaN, et LES DEUX COMPARAISONS DE MIN ET DE MAX SONT
+                  FAUSSES POUR UN NaN — l entree disparaissait de trois axes sur
+                  six sans rien lever. Symptome : deux regions declarees
+                  semblables a 13 % alors que leurs densites different de 36 %.
+                  Vingt regions sur vingt-neuf ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10143,4 +10163,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.17";
+export const VERSION = "0.43.18";

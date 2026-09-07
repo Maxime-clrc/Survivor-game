@@ -148,7 +148,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_FOSSE = 38, B_POUTRE = 39,
              B_LAMINOIR = 40,
              B_MEMBRURE = 41, B_BORDE = 42,
-             B_ALVEOLE = 43, B_COURSIVE = 44;
+             B_ALVEOLE = 43, B_COURSIVE = 44,
+             B_BAC = 45, B_HOTTE = 46, B_CAGE = 47, B_PORTIQUE = 48;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -200,6 +201,10 @@ export const BLOCS = [
   { key: "borde", lieu: "nebuleuse" },
   { key: "alveole", lieu: "secteur" },
   { key: "coursive", lieu: "secteur" },
+  { key: "bac", lieu: "usine" },
+  { key: "hotte", lieu: "usine" },
+  { key: "cage", lieu: "usine" },
+  { key: "portique", lieu: "usine" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -477,6 +482,37 @@ const OBSTACLES = {
       { x: 0.12, y: 0.68, w: 0.040, h: 0.044, hp: 1, kind: B_PILE, min: 2 },
       { x: 0.88, y: 0.88, w: 0.040, h: 0.044, hp: 1, kind: B_PILE, min: 2 },
       { x: 0.50, y: 0.08, w: 0.052, h: 0.130, kind: B_MACHINE },
+    ] },
+    /* LE TRAITEMENT DE SURFACE — ON TREMPE, DONC IL Y A UN TROU. La seule region
+       du depot dont la trame soit une ABSENCE : une saignee de bacs traverse le
+       quartier, on la franchit en trois points, et le reste du semis se tient sur
+       ses bords. Les hottes coupent la vue en hauteur sans rien bloquer au sol.
+       C est aussi le seul sol AJOURE de l Usine — on marche sur le caillebotis
+       d une passerelle, pas sur du beton. */
+    { cle: "traitement", nom: "le traitement", label: "Le traitement", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.20, y: 0.14, w: 0.100, h: 0.070, kind: B_BAC },
+      { x: 0.62, y: 0.14, w: 0.100, h: 0.070, kind: B_BAC },
+      { x: 0.20, y: 0.86, w: 0.100, h: 0.070, kind: B_BAC, min: 1 },
+      { x: 0.80, y: 0.86, w: 0.100, h: 0.070, kind: B_BAC, min: 2 },
+      { x: 0.34, y: 0.28, w: 0.070, h: 0.050, kind: B_HOTTE },
+      { x: 0.76, y: 0.72, w: 0.070, h: 0.050, kind: B_HOTTE, min: 1 },
+      { x: 0.10, y: 0.66, w: 0.070, h: 0.050, kind: B_HOTTE, min: 2 },
+    ] },
+    /* LA ZONE ROBOTISEE — PERSONNE N Y MARCHE. Des cellules grillagees, un
+       portique qui les enjambe, et un sol NEUF : c est la seule region du depot
+       ou le sol n a pas d usure, parce que rien de vivant n y passe. Un endroit
+       propre dans une usine sale dit tout.
+       La cage est un CADRE, donc elle bloque le corps et laisse voir ce qui
+       travaille dedans — la meme silhouette que la claire-voie des utilites, un
+       cran plus serree. */
+    { cle: "robotisee", nom: "la zone robotisee", label: "La zone robotisée", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.14, y: 0.20, w: 0.060, h: 0.080, kind: B_CAGE },
+      { x: 0.86, y: 0.20, w: 0.060, h: 0.080, kind: B_CAGE },
+      { x: 0.14, y: 0.80, w: 0.060, h: 0.080, kind: B_CAGE, min: 1 },
+      { x: 0.86, y: 0.80, w: 0.060, h: 0.080, kind: B_CAGE, min: 1 },
+      { x: 0.50, y: 0.14, w: 0.060, h: 0.080, kind: B_CAGE, min: 2 },
+      { x: 0.30, y: 0.30, w: 0.220, h: 0.020, kind: B_PORTIQUE },
+      { x: 0.50, y: 0.86, w: 0.220, h: 0.020, kind: B_PORTIQUE, min: 1 },
     ] },
     /* L EXPEDITION — LE BORD DU BATIMENT. Une file de quais sur un cote, les
        remorques a cul, et une aire de manoeuvre franche devant. La loi est
@@ -976,9 +1012,10 @@ const OBSTACLES = {
    CHAQUE PRIMITIVE DECLARE SES OUVERTURES, elle ne les subit pas : `TRAME_BRECHE`
    au minimum, une au moins tous les `TRAME_PAS`, et la couronne en a quatre.
    =========================================================================== */
-export const TR_RUBAN = 0, TR_NEF = 1, TR_PEIGNE = 2, TR_COURONNE = 3, TR_CRIBLE = 4;
+export const TR_RUBAN = 0, TR_NEF = 1, TR_PEIGNE = 2, TR_COURONNE = 3,
+             TR_CRIBLE = 4, TR_FAILLE = 5;
 
-export const TRAME_NOMS = ["ruban", "nef", "peigne", "couronne", "crible"];
+export const TRAME_NOMS = ["ruban", "nef", "peigne", "couronne", "crible", "faille"];
 
 function poserBloc(out, x, y, w, h, kind) {
   if (w < 24 || h < 24) return;
@@ -1067,6 +1104,18 @@ export function poserTrame(type, kind, q, rand) {
       const a = c0 + (i / COURONNE_N) * Math.PI * 2;
       poserBloc(out, cx + Math.cos(a) * R, cy + Math.sin(a) * R, cote, cote, kind);
     }
+  } else if (type === TR_FAILLE) {
+    /* UNE SAIGNEE, ET ELLE EST SEULE. C est la seule primitive qui decrive une
+       ABSENCE : ses blocs sont `creux`, donc `drawObstacles` leur retire l ombre
+       portee et le relief, et il ne reste que le bord et le fond.
+       ELLE EST DEUX FOIS ET DEMIE PLUS EPAISSE QU UN RUBAN et n en pose qu une :
+       un trou n a d interet que s il faut le contourner, et deux trous
+       paralleles feraient une bande impraticable entre eux.
+       ELLE BLOQUE LES TIRS COMME LE RESTE, et c est ecrit ailleurs : la rendre
+       traversable demanderait que la simulation lise `kind`, or `kind` ne circule
+       pas et le serveur ne le lit jamais. */
+    const pos = t0 + T * (0.36 + rand() * 0.28);
+    bande(out, kind, a0, a1, pos, ep * 2.4, vert);
   } else if (type === TR_CRIBLE) {
     // UN RESEAU REGULIER AVEC SES MANQUES : les allees sont orthogonales, donc
     // toujours traversantes, et deux cases retirees cassent la regularite.
@@ -1110,6 +1159,10 @@ const TRAMES = {
     // les utilites sont un PARC, donc un crible — de transformateurs, pas
     // d armoires : le couple separe ce que le type seul confondrait.
     { type: TR_CRIBLE, kind: B_TRANSFO },
+    // le traitement est LA FAILLE : la seule trame qui decrive une absence.
+    { type: TR_FAILLE, kind: B_BAC },
+    // la zone robotisee tourne autour de sa cellule : une couronne de cages.
+    { type: TR_COURONNE, kind: B_CAGE },
   ],
   fonderie: [
     { type: TR_RUBAN, kind: B_CONDUITE },
@@ -2116,7 +2169,13 @@ export function signatureBiome(biomeIndex, arenaW = 1600, arenaH = 900,
 export function signatureVariante(lieu, vi, diffIndex = 2) {
   const v = (OBSTACLES[lieu] ?? [])[vi];
   if (!v) return null;
-  const poser = v.poser.filter(o => (o.min ?? 0) <= diffIndex);
+  /* LA POSE DEPLIEE, MEME RAISON QUE `gabaritsDe`. Une entree oblique n a ni
+     `w` ni `h` : `o.w * o.h` rend `NaN`, `surf` devient `NaN`, et les deux
+     comparaisons de min et de max sont FAUSSES pour un NaN — donc l entree
+     disparaissait de trois axes sur six SANS RIEN LEVER. Mesure du symptome :
+     « le degagement » et « le traitement » declares semblables a 13 % alors que
+     leurs densites reelles different de 36 %. */
+  const poser = deplierPose(v.poser).filter(o => (o.min ?? 0) <= diffIndex);
   let min = Infinity, max = 0, elong = 1, surf = 0;
   for (const o of poser) {
     const a = o.w * o.h;
