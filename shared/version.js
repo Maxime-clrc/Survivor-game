@@ -10320,6 +10320,31 @@
                   144 x 27 ils mangent 11,5 % du rectangle pour un seuil de 10.
                   34 regions, 34 signatures, pire Jaccard bati inchange a 0,50.
 
+    0.43.26 lot 27 LA NEBULEUSE PASSE DE CINQ REGIONS A HUIT. La serre (sol
+                  vegetal, bacs de culture en cadres) est la seule chose VIVANTE
+                  hors de la Friche : la couleur dit qu on a change d endroit
+                  avant qu on ait identifie un objet. Le reacteur porte le TORE,
+                  seule masse intacte et refermee d un theme fait d aretes
+                  cassees — son interieur n est PAS un trou, la silhouette
+                  remplit son rectangle et c est la bande claire qui dit
+                  l anneau. Le champ d antennes est la seule region du depot dont
+                  les masses aient une ORIENTATION COMMUNE.
+                  QUATRE ROUGES, ET TROIS DISAIENT LA MEME CHOSE : une region
+                  neuve RETIRE sa signature a ses voisines — cloisons de la
+                  coursive, consoles de la coursive, bras du dock, roche de la
+                  derive. Et remplacer au hasard recree un NOYAU partage, ce que
+                  le lot 22 a casse : chaque region neuve garde donc DEUX
+                  familles, la sienne et la travee, qui n est exclusive a
+                  personne.
+                  LE QUATRIEME EST DE NOUVEAU LE CATALOGUE, PAS LE RANGEMENT. Le
+                  champ d antennes a [0, 3] CONTENAIT le dock — 71 % pour un
+                  plafond de 70 — et les six paires de quatre quartiers etaient
+                  prises par les cinq regions d origine. Meme arithmetique qu a
+                  l Usine au lot 20 : un CINQUIEME quartier, deux props neufs
+                  (reflecteur, boitier), et il s appelle CE QUI ECOUTE. 12,5 %
+                  apres.
+                  37 regions, 37 signatures, 62 props tous atteints.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10328,4 +10353,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.25";
+export const VERSION = "0.43.26";

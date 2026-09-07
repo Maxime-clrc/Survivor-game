@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Nébuleuse passe de cinq régions à huit (0.43.26)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la serre** | `vegetal` | bac de culture | peigne de rangées |
+| **le réacteur** | `dalle` | tore | couronne |
+| **le champ d'antennes** | `granulat` | parabole au sol | crible d'embases |
+
+- **La serre est la seule chose vivante hors de la Friche**, et le seul sol
+  végétal du thème : la couleur dit qu'on a changé d'endroit avant qu'on ait
+  identifié un objet. Les bacs sont des **cadres** — on voit les plants à travers
+  sans pouvoir tirer proprement, la mécanique de la claire-voie au service de
+  tout autre chose.
+- **Le tore est la seule masse intacte et refermée du thème.** Tout le reste de
+  la Nébuleuse est cassé : des arêtes, des éclats, des poutres tordues. Son
+  intérieur n'est **pas** un trou — la silhouette remplit son rectangle, la
+  collision est une AABB, et ce qui dit l'anneau est la bande claire, pas une
+  absence.
+- **Le champ d'antennes est la seule région du dépôt dont les masses aient une
+  orientation COMMUNE**, et ça se voit avant qu'on ait identifié un seul objet.
+
+**Quatre rouges, et trois disaient la même chose : une région neuve RETIRE sa
+signature à ses voisines.** La serre posait des cloisons (celle de la coursive),
+le réacteur des consoles (la coursive encore), les antennes des bras (le dock) et
+une roche (la dérive). Et remplacer au hasard **recrée un noyau partagé** — ce
+que le lot 22 a cassé. Chaque région neuve garde donc **deux** familles : la
+sienne, et la travée, qui n'est exclusive à personne.
+
+**Le quatrième rouge est de nouveau le catalogue, pas le rangement.** Le champ
+d'antennes à `[0, 3]` **contenait** le dock — **71 %** de props partagés pour un
+plafond de 70 —, et les six paires distinctes de quatre quartiers étaient déjà
+prises par les cinq régions d'origine. Même arithmétique qu'à l'Usine au lot 20,
+même réponse : **un cinquième quartier**, deux props neufs (réflecteur, boîtier),
+et le quartier s'appelle *ce qui écoute*. Recouvrement après : **12,5 %**.
+
+**Et la carte des dangers commande la table.** La Nébuleuse porte deux nappes de
+114 et 121 px de rayon sur la bande `y = 0,34` à `0,66`, plus leurs **quatre
+miroirs** : la moitié centrale de la cellule lui appartient. Les rangées de la
+serre tiennent donc le haut et le bas, avec 90 px entre deux bacs.
+
+| | régions | avec une signature | props |
+|---|---:|---:|---:|
+| 0.43.25 | 34 | 34 | 60 |
+| 0.43.26 | **37** | **37** | **62** |
+
+Pire Jaccard bâti : **0,50**, inchangé. Les 62 props sont tous atteints par les
+soixante vues de `verifierDessin`.
+
 ### Le Secteur passe de cinq régions à huit (0.43.25)
 
 Premier lot de contenu depuis que les six tables par région sont **toutes

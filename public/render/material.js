@@ -1495,6 +1495,9 @@ const SOL_REGION = {
   nebuleuse: {
     derive: T_TECHNIQUE, dock: T_AJOURE, coursive: T_LISSE,
     chantier: T_MARQUE, breche: T_MINERAL,
+    // LE SEUL SOL VEGETAL HORS DE LA FRICHE, et c est ce qui fait la serre : la
+    // couleur dit qu on a change d endroit avant qu on ait vu un seul objet.
+    serre: T_VEGETAL, reacteur: T_DALLE, antennes: T_GRANULAT,
   },
   // les capsules marchent sur un plancher DEMONTABLE, pose sur la coursive.
   secteur: {

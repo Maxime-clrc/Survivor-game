@@ -13,7 +13,8 @@ import {
   B_TAS, B_BOSQUET, B_RONCE,
   B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE,
   B_ROCHE, B_SAS, B_ABRIBUS,
-  B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, gabaritsDe,
+  B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE,
+  B_CULTURE, B_TORE, B_PARABOLE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -96,6 +97,7 @@ const HABILLAGE = {
   tas, bosquet, ronce,
   tunnel, tournante, convertisseur, talus, portail, dalle, roche, sas, abribus,
   vehicule, tourniquet, barriere, guerite,
+  bacCulture, tore, paraboleSol,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -183,6 +185,13 @@ const BLOC = {
     [B_MEMBRURE]: { sil: "cadre", hab: "membrure" },
     [B_BORDE]: { sil: "caisson", hab: "borde" },
     [B_ROCHE]: { sil: "masse_molle", hab: "roche" },
+    // LE CADRE, une cinquieme fois : claire-voie, chassis de sable, grillage,
+    // ossature, et maintenant un bac de culture. Sa regle tient — il est habille.
+    [B_CULTURE]: { sil: "cadre", hab: "bacCulture" },
+    // LE PREMIER OCTOGONE HORS DE LA FONDERIE, et c est le meme argument : ce
+    // qui contient une reaction n a pas de coin.
+    [B_TORE]: { sil: "octogone", hab: "tore" },
+    [B_PARABOLE]: { sil: "fut", hab: "paraboleSol" },
     [B_SAS]: { sil: "caisson", hab: "sas" },
   },
   secteur: {
@@ -3098,6 +3107,103 @@ function guerite(o, S) {
   else ctx.fillRect(w / 2 - 4 - w * 0.24, -h / 2 + 4, w * 0.24, h - 8);
   ctx.fillStyle = alpha(S.emis, 0.18);
   ctx.fillRect(-2, -2, 4, 4);
+}
+
+
+/* LE BAC DE CULTURE — UN CADRE, ET ON VOIT LES PLANTS A TRAVERS. La meme
+   mecanique que la claire-voie de l Usine au service de tout autre chose : on
+   lit ce qui arrive derriere sans pouvoir tirer proprement. Ce qui pousse dedans
+   est SEMI-OPAQUE et pousse VERS LA LUMIERE, donc les touffes sont plus denses
+   d un cote — c est ce qui dit qu il y a un eclairage au-dessus. */
+function bacCulture(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LA CUVE, un liseré metallique franc : un bac est un objet FABRIQUE.
+  ctx.strokeStyle = alpha("#c9ccd2", 0.28);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  ctx.fillStyle = alpha("#1a2418", 0.42);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // LES PLANTS, en rangs le long de l axe long, plus denses d un cote.
+  const n = Math.max(4, (L / 16) | 0);
+  for (let i = 0; i < n; i++) {
+    const u = -L / 2 + (i + 0.5) * (L / n);
+    const k = 0.5 + (i / n) * 0.5;
+    const r = 2.4 + ((s >> (i % 11)) & 3) * 1.1;
+    ctx.fillStyle = alpha(PROP.vert, 0.18 + k * 0.22);
+    if (long) ctx.beginPath(), ctx.arc(u, (((s >> i) & 1) - 0.5) * h * 0.24, r, 0, Math.PI * 2), ctx.fill();
+    else ctx.beginPath(), ctx.arc((((s >> i) & 1) - 0.5) * w * 0.24, u, r, 0, Math.PI * 2), ctx.fill();
+  }
+  // la buse d arrosage : un point clair, et c est la seule eau de la Nebuleuse.
+  ctx.fillStyle = alpha(PROP.givre, 0.24);
+  ctx.fillRect(long ? -L * 0.30 : -1.5, long ? -1.5 : -L * 0.30, 3, 3);
+}
+
+/* LE TORE — LA SEULE MASSE INTACTE ET REFERMEE DU THEME. Tout le reste de la
+   Nebuleuse est casse : des aretes, des eclats, des poutres tordues. Un anneau
+   n a pas d arete du tout, donc il se lit d une vue entiere sans qu on ait
+   besoin d en voir le tour.
+   L INTERIEUR N EST PAS UN TROU : la silhouette remplit son rectangle, la
+   collision est une AABB, et un anneau creux ferait buter sur du vide. Ce qui
+   dit l anneau est la BANDE claire, pas une absence. */
+function tore(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.50);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  const rx = w * 0.36, ry = h * 0.36;
+  ctx.strokeStyle = alpha("#c9ccd2", 0.22);
+  ctx.lineWidth = Math.max(4, Math.min(w, h) * 0.13);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  // LES SEGMENTS : un tore est boulonne par troncons, et c est l echelle.
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + ((s & 3) * 0.2);
+    ctx.moveTo(Math.cos(a) * rx * 0.78, Math.sin(a) * ry * 0.78);
+    ctx.lineTo(Math.cos(a) * rx * 1.22, Math.sin(a) * ry * 1.22);
+  }
+  ctx.stroke();
+  // le coeur, la seule chose chaude d un theme froid.
+  ctx.fillStyle = alpha(S.emis, 0.20);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.30, ry * 0.30, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LA PARABOLE — TOUT EST TOURNE DANS LE MEME SENS, ET C EST LA REGION QUI LE
+   DIT. Le decalage du foyer donne l inclinaison ; toutes les paraboles d une
+   cellule partagent la meme graine de cellule, donc elles ecoutent la meme
+   chose. C est la seule orientation COMMUNE du depot. */
+function paraboleSol(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const rx = w * 0.46, ry = h * 0.46;
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  const dx = ((s & 3) / 3 - 0.5) * w * 0.22, dy = (((s >> 2) & 3) / 3 - 0.5) * h * 0.22;
+  const g = ctx.createRadialGradient(dx, dy, 0, 0, 0, Math.max(rx, ry));
+  g.addColorStop(0, alpha("#dfe6ee", 0.30));
+  g.addColorStop(0.65, alpha("#8c959f", 0.34));
+  g.addColorStop(1, alpha("#2a2f36", 0.44));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.96, ry * 0.96, 0, 0, Math.PI * 2); ctx.fill();
+  // LES NERVURES, radiales : sans elles c est une assiette.
+  ctx.strokeStyle = alpha("#000000", 0.18);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * rx * 0.92, Math.sin(a) * ry * 0.92);
+  }
+  ctx.stroke();
+  // LE FOYER, decale : c est lui qui donne le SENS d ecoute.
+  ctx.fillStyle = alpha(PROP.balise, 0.30);
+  ctx.beginPath(); ctx.arc(dx * 1.7, dy * 1.7, Math.min(rx, ry) * 0.14, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha("#c9ccd2", 0.20);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dx * 1.7, dy * 1.7); ctx.stroke();
 }
 
 function coque(o, S) {

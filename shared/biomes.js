@@ -154,7 +154,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_TUNNEL = 52, B_TOURNANTE = 53, B_CONVERTISSEUR = 54,
              B_TALUS = 55, B_PORTAIL = 56, B_DALLE = 57,
              B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60,
-             B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64;
+             B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64,
+             B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -231,6 +232,9 @@ export const BLOCS = [
   { key: "tourniquet", lieu: "secteur" },
   { key: "barriere", lieu: "secteur" },
   { key: "guerite", lieu: "secteur" },
+  { key: "culture", lieu: "nebuleuse" },
+  { key: "tore", lieu: "nebuleuse" },
+  { key: "parabole", lieu: "nebuleuse" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -980,6 +984,62 @@ const OBSTACLES = {
     /* LA BRECHE — le bati concentre sur un bord, l autre ouvert sur le vide.
        La seule variante ASYMETRIQUE du theme : le miroir de cellule en fait une
        loi qui change de cote d une region a l autre, sans table de plus. */
+    /* LA SERRE — LA SEULE CHOSE VIVANTE HORS DE LA FRICHE, ET ELLE EST SOUS
+       VERRE. Toute la Nebuleuse est morte : de la tole, du givre, des eclats.
+       Ici on cultive, donc quelqu un tient encore, et c est la seule region du
+       theme dont le sol soit VEGETAL — la couleur a elle seule dit qu on a
+       change d endroit.
+       Les bacs sont des CADRES : on voit les plants a travers sans pouvoir
+       tirer proprement, la meme mecanique que la claire-voie de l Usine au
+       service de tout autre chose. */
+    { cle: "serre", nom: "la serre", label: "La serre", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      /* LES RANGEES TIENNENT LE HAUT ET LE BAS, ET C EST LA CARTE DES DANGERS
+         QUI L A DIT. La Nebuleuse porte deux nappes de 114 et 121 px de rayon
+         sur la bande y = 0,34 a 0,66, et leurs quatre miroirs avec elles : la
+         moitie centrale de la cellule lui appartient. L ecart entre deux bacs
+         est de 90 px, au-dessus de `PASSAGE_MIN`. */
+      { x: 0.24, y: 0.16, w: 0.150, h: 0.040, kind: B_CULTURE },
+      { x: 0.24, y: 0.30, w: 0.150, h: 0.040, kind: B_CULTURE },
+      { x: 0.76, y: 0.84, w: 0.150, h: 0.040, kind: B_CULTURE, min: 1 },
+      { x: 0.76, y: 0.70, w: 0.150, h: 0.040, kind: B_CULTURE, min: 1 },
+      { x: 0.76, y: 0.16, w: 0.150, h: 0.040, kind: B_CULTURE, min: 2 },
+      // PAS DE CLOISON : c est la seule famille que la coursive ait a elle. Et
+      // pas de debris non plus — une serre est le seul endroit PROPRE du theme.
+      { x: 0.42, y: 0.16, w: 0.030, h: 0.130, kind: B_TRAVEE },
+      { x: 0.58, y: 0.84, w: 0.030, h: 0.130, kind: B_TRAVEE, min: 1 },
+    ] },
+    /* LE REACTEUR — UNE MASSE CIRCULAIRE, ET C EST LA SEULE DU THEME. La
+       Nebuleuse est faite de fragments et de poutres : des aretes cassees. Un
+       tore est INTACT et referme sur lui-meme, donc il se lit d une vue entiere
+       sans qu on ait besoin d en voir le tour.
+       Il ne tourne pas et il n emet pas de telegraphe : un mouvement continu
+       appartient a la matiere, et ce canal-la est au boss. */
+    { cle: "reacteur", nom: "le reacteur", label: "Le réacteur", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.34, y: 0.24, w: 0.110, h: 0.150, kind: B_TORE },
+      { x: 0.66, y: 0.76, w: 0.110, h: 0.150, kind: B_TORE, min: 1 },
+      { x: 0.66, y: 0.24, w: 0.075, h: 0.100, kind: B_TORE, min: 2 },
+      // PAS DE CONSOLE : elle appartient a la coursive. Deux petits tores font
+      // le meme travail — donner un troisieme gabarit a la region.
+      { x: 0.14, y: 0.66, w: 0.055, h: 0.075, kind: B_TORE },
+      { x: 0.86, y: 0.34, w: 0.055, h: 0.075, kind: B_TORE, min: 1 },
+      { x: 0.42, y: 0.84, w: 0.020, h: 0.140, kind: B_TRAVEE },
+    ] },
+    /* LE CHAMP D ANTENNES — ON ECOUTE, DONC TOUT EST TOURNE DANS LE MEME SENS.
+       C est la seule region du depot dont les masses aient une ORIENTATION
+       COMMUNE, et ca se voit avant qu on ait identifie un seul objet. Le sol est
+       du GRANULAT : de la roche broyee, tassee sous les embases. */
+    { cle: "antennes", nom: "le champ d antennes", label: "Le champ d'antennes", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.22, y: 0.22, w: 0.090, h: 0.090, kind: B_PARABOLE },
+      { x: 0.78, y: 0.78, w: 0.090, h: 0.090, kind: B_PARABOLE },
+      { x: 0.22, y: 0.78, w: 0.090, h: 0.090, kind: B_PARABOLE, min: 1 },
+      { x: 0.78, y: 0.22, w: 0.090, h: 0.090, kind: B_PARABOLE, min: 2 },
+      { x: 0.44, y: 0.50, w: 0.060, h: 0.060, kind: B_PARABOLE, min: 1 },
+      // NI BRAS NI ROCHE : le bras est au dock, la roche a la derive, et les
+      // leur prendre les laissait sans rien a elles.
+      { x: 0.10, y: 0.50, w: 0.024, h: 0.120, kind: B_TRAVEE },
+      { x: 0.90, y: 0.50, w: 0.024, h: 0.120, kind: B_TRAVEE, min: 1 },
+      { x: 0.44, y: 0.28, w: 0.090, h: 0.100, kind: B_PARABOLE },
+    ] },
     { cle: "breche", nom: "la breche", label: "La brèche", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_MUR], poser: [
       /* 0,13 -> 0,26 : LA TRAVEE PASSAIT A TRAVERS LES DEUX FRAGMENTS, 32 px sur
          86 — une poutre dessinee DANS la roche, aux trois modes et a toutes les
@@ -1410,6 +1470,13 @@ const TRAMES = {
     // une ossature EST un crible : des appuis reguliers et rien entre eux.
     chantier: { type: TR_CRIBLE, kind: B_MEMBRURE },
     breche: { type: TR_NEF, kind: B_TRAVEE },
+    // une serre est un PEIGNE de bacs : la meme primitive que le dock, et c est
+    // la famille qui separe une file d amarrages d une file de cultures.
+    serre: { type: TR_PEIGNE, kind: B_CULTURE },
+    // un reacteur tourne autour de son coeur : la premiere couronne du theme.
+    reacteur: { type: TR_COURONNE, kind: B_TORE },
+    // un champ d antennes est un CRIBLE : des embases regulieres et rien entre.
+    antennes: { type: TR_CRIBLE, kind: B_PARABOLE },
   },
   secteur: {
     rue: { type: TR_RUBAN, kind: B_DEVANTURE },

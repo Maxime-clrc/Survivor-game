@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -46,7 +46,8 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_GERBEUR = 49, P_TRANSPALETTE = 50, P_CALE = 51, P_SERVANTE = 52,
       P_CARTER = 53, P_COFFRET_HT = 54,
       P_PNEUS = 55, P_MOTEUR = 56, P_PARPAINGS = 57, P_PLOT = 58,
-      P_VANNE = 59, P_FUT = 60, P_DOUCHE = 61;
+      P_VANNE = 59, P_FUT = 60, P_DOUCHE = 61,
+      P_REFLECTEUR = 62, P_BOITIER = 63;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -95,7 +96,8 @@ const TABLE = {
            P_CARCASSE, P_BIDON, P_PANNEAU, P_TUBE, P_DEBRIS, P_CABLE,
            P_PNEUS, P_MOTEUR, P_PARPAINGS, P_PLOT],
   nebuleuse: [P_EPAVE, P_EPAVE, P_VOILE, P_VOILE, P_CRISTAL, P_CRISTAL,
-              P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE],
+              P_MODULE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_GIVRE, P_BALISE,
+              P_REFLECTEUR, P_BOITIER],
   /* LE SECTEUR NE PARTAGE RIEN NON PLUS. La tentation etait de lui preter le
      cable et le tuyau du fonds industriel — ils existent, ils sont ecrits — mais
      une rue habitee n a pas la meme quincaillerie qu un atelier : ce qui traine
@@ -181,6 +183,12 @@ const ZONES = {
     [P_VOILE, P_VOILE, P_ANCRAGE, P_RAIL],
     [P_CRISTAL, P_CRISTAL, P_GIVRE, P_VOILE],
     [P_BALISE, P_ANTENNE, P_RAIL, P_ANCRAGE, P_MODULE],
+    /* UN CINQUIEME QUARTIER, ET C EST LA MEME ARITHMETIQUE QU A L USINE. Quatre
+       quartiers pour huit regions : les six paires distinctes etaient prises par
+       les cinq regions d origine, et le champ d antennes a [0, 3] CONTENAIT le
+       dock — 71 % pour un plafond de 70. Redistribuer ne pouvait rien, il
+       fallait des props de plus. Ce quartier est CE QUI ECOUTE. */
+    [P_ANTENNE, P_REFLECTEUR, P_BOITIER, P_GIVRE],
   ],
   // elle S AFFICHE : le devant de vitrine, la chaussee, ce qui dessert par
   // derriere, et le coin ou l on stationne.
@@ -265,7 +273,11 @@ const QUARTIER = {
                // une roche n a jamais ete un vaisseau, mais ce qui derive
                // autour d elle est le meme : le quartier de l epave. Le sas est
                // ce a quoi on s AMARRE — c est par la qu on entre.
-               [B_ROCHE]: 0, [B_SAS]: 3 },
+               [B_ROCHE]: 0, [B_SAS]: 3,
+               // on CULTIVE dans un module, on ECOUTE avec ce a quoi on
+               // s amarre, et un reacteur est ce qui tient la voilure sous
+               // tension : le quartier de la voile.
+               [B_CULTURE]: 0, [B_TORE]: 1, [B_PARABOLE]: 3 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
   // le monolithe et l etal VENDENT (ou impressionnent) ; le mur aveugle et
   // l escalier sont l arriere, la ou l on livre — le quartier du conteneur.
@@ -694,6 +706,8 @@ function dessin(p, ox, oy) {
     case P_VANNE: return vanne(p, ox, oy);
     case P_FUT: return futRetention(p, ox, oy);
     case P_DOUCHE: return doucheSecu(p, ox, oy);
+    case P_REFLECTEUR: return reflecteur(p, ox, oy);
+    case P_BOITIER: return boitier(p, ox, oy);
     case P_PNEUS: return pneus(p, ox, oy);
     case P_MOTEUR: return moteur(p, ox, oy);
     case P_PARPAINGS: return parpaings(p, ox, oy);
@@ -2018,6 +2032,16 @@ const AIR = {
     // rien n y est encore une coque.
     chantier: { dens: 0.80, ech: [0.70, 0.80], zones: [2, 3], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
     breche: { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
+    // la serre ne tire QUE le module : rien de ce qui derive n entre sous verre.
+    // Et c est le seul endroit du theme ou quelque chose COULE.
+    serre: { dens: 1.30, ech: [0.54, 0.62], zones: [0], matieres: [TRACE_INTERSTICE, TRACE_RUISSELLEMENT] },
+    // un reacteur tient la voilure et s amarre : rien n y traine de casse.
+    // UNE SEULE ZONE : a [1, 3] le reacteur CONTENAIT le dock, qui ne tire que
+    // l amarrage — 83 % de props partages. Il ne tire donc que la voilure.
+    reacteur: { dens: 0.64, ech: [0.94, 1.10], zones: [1], matieres: [TRACE_ROUSSI, TRACE_MARQUAGE] },
+    // un champ d antennes est POSE sur du regolithe : ce qui traine autour est
+    // ce qui a gele dessus et ce a quoi on s amarre.
+    antennes: { dens: 0.90, ech: [0.72, 0.86], zones: [4], matieres: [TRACE_POUSSIERE, TRACE_ECLATS] },
   },
   secteur: {
     rue: { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
@@ -2620,6 +2644,45 @@ function doucheSecu(p, ox, oy) {
   ctx.fillRect(-r * 1.5, -l + 1, r * 0.9, 2.4);
   ctx.fillStyle = alpha(PROP.verre, 0.26);
   ctx.beginPath(); ctx.arc(r * 1.7, -l * 0.55, r * 0.6, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LE REFLECTEUR — UN MIROIR SUR TREPIED, ET IL EST ORIENTE. Vu de dessus, un
+   disque clair et trois pieds : la seule chose du semis qui RENVOIE la lumiere
+   au lieu d en emettre ou d en absorber. Son inclinaison suit la graine de la
+   cellule, donc tous ceux d une meme cellule regardent au meme endroit. */
+function reflecteur(p, ox, oy) {
+  const r = 6 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.beginPath(); ctx.ellipse(ox, oy, r * 1.1, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.44);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + p.p * 2;
+    ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * r * 1.3, Math.sin(a) * r * 0.9);
+  }
+  ctx.stroke();
+  const g = ctx.createLinearGradient(-r, -r * 0.7, r, r * 0.7);
+  g.addColorStop(0, alpha("#e8f0f8", 0.34));
+  g.addColorStop(1, alpha("#5a6a78", 0.30));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.72, p.p * 0.6, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LE BOITIER — CE QUI ENREGISTRE. Un coffret bas, une trappe, et une diode qui
+   ne clignote pas : il fonctionne encore, et c est tout ce qu il a a dire dans
+   un theme ou plus rien ne fonctionne. */
+function boitier(p, ox, oy) {
+  const w = 11 + p.p * 6, h = 8 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.metal, 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  ctx.fillStyle = alpha(PROP.balise, 0.30);
+  ctx.fillRect(w / 2 - 4, -h / 2 + 2, 2, 2);
 }
 
 // LE CARTER DEPOSE — une coque courbe posee a l envers, avec ses trous de
