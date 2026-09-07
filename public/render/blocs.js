@@ -16,7 +16,8 @@ import {
   B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE,
   B_CULTURE, B_TORE, B_PARABOLE,
   B_WAGON, B_BALLE, B_FERME,
-  B_GABARIT, B_CABINE, B_BRAME, gabaritsDe,
+  B_GABARIT, B_CABINE, B_BRAME,
+  B_BENNE, B_CHAUDIERE, B_CHARGEUR, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -102,6 +103,7 @@ const HABILLAGE = {
   bacCulture, tore, paraboleSol,
   wagon, balle, fermeTombee,
   gabarit, cabine, brame,
+  benne, chaudiere, chargeur,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -134,6 +136,11 @@ const BLOC = {
     [B_CLOTURE]: { sil: "cadre", hab: "cloture" },
     [B_TUNNEL]: { sil: "caisson", hab: "tunnel" },
     [B_TOURNANTE]: { sil: "caisson", hab: "tournante" },
+    [B_BENNE]: { sil: "conteneur", hab: "benne" },
+    // LE PREMIER OCTOGONE HORS DE LA FONDERIE ET DE LA NEBULEUSE : ce qui
+    // contient une combustion n a pas de coin, quel que soit le theme.
+    [B_CHAUDIERE]: { sil: "octogone", hab: "chaudiere" },
+    [B_CHARGEUR]: { sil: "machine", hab: "chargeur" },
   },
   fonderie: {
     [B_FOUR]: { sil: "octogone", hab: "four" },
@@ -3432,6 +3439,108 @@ function brame(o, S) {
   // la CHALEUR restante, au coeur seulement : elle part par les cotes.
   ctx.fillStyle = alpha(S.emis, 0.10 + (s & 3) * 0.02);
   ctx.fillRect(-w * 0.18, -h * 0.18, w * 0.36, h * 0.36);
+}
+
+
+/* LA BENNE — UN CAISSON OUVERT, ET ON VOIT CE QU IL Y A DEDANS. Tout le reste du
+   theme est ferme ; celle-ci montre son contenu, et c est ce qui dit qu on est
+   dehors et qu on jette. Les crochets de levage debordent du bord haut : sans
+   eux c est une caisse, avec eux on sait qu un camion viendra la prendre. */
+function benne(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.rouille, 0.44);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // L INTERIEUR, plus sombre et plus bas : c est ce creux qui fait la benne.
+  ctx.fillStyle = alpha("#0e1013", 0.50);
+  ctx.fillRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
+  // LE CONTENU : des morceaux clairs qui DEPASSENT du bord — jamais ras.
+  for (let i = 0; i < 7; i++) {
+    const x = -w / 2 + 6 + ((s * (i + 5)) % 991) / 991 * (w - 12);
+    const y = -h / 2 + 6 + ((s * (i + 13)) % 983) / 983 * (h - 12);
+    ctx.fillStyle = alpha(((s >> i) & 1) ? "#6a6258" : "#8a7a5a", 0.30);
+    ctx.fillRect(x, y, 4 + ((s >> i) & 3), 3 + ((s >> (i + 2)) & 3));
+  }
+  // LES CROCHETS, sur l axe long : c est par la qu on la souleve.
+  ctx.strokeStyle = alpha(PROP.metal, 0.40);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  for (const u of [-0.28, 0.28]) {
+    if (long) { ctx.moveTo(L * u, -h / 2 - 2); ctx.lineTo(L * u, -h / 2 + 4); }
+    else { ctx.moveTo(-w / 2 - 2, L * u); ctx.lineTo(-w / 2 + 4, L * u); }
+  }
+  ctx.stroke();
+}
+
+/* LA CHAUDIERE — LE MEME OCTOGONE QUE LE FOUR DE LA FONDERIE, une autre matiere.
+   Ce qui contient une combustion n a pas de coin, quel que soit le theme. Ce qui
+   la separe du four est la BRIQUE : un four est en tole, une chaudiere est
+   maconnee, et c est le seul appareil de l Usine qu on ait bati au lieu de
+   boulonner. Le regard de flamme est minuscule et il ne clignote pas. */
+function chaudiere(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.brique, 0.54);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // L APPAREILLAGE DE BRIQUE : des rangs decales, et c est ce qu on reconnait.
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let y = -h / 2 + 6; y < h / 2 - 2; y += 6) {
+    ctx.moveTo(-w / 2 + 2, y); ctx.lineTo(w / 2 - 2, y);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = alpha("#000000", 0.14);
+  ctx.beginPath();
+  let dec = 0;
+  for (let y = -h / 2 + 6; y < h / 2 - 2; y += 6) {
+    for (let x = -w / 2 + 4 + (dec ? 7 : 0); x < w / 2 - 2; x += 14) {
+      ctx.moveTo(x, y); ctx.lineTo(x, y + 6);
+    }
+    dec ^= 1;
+  }
+  ctx.stroke();
+  // LE CERCLAGE metallique : une chaudiere est frettee.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.44);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 2, -h * 0.22); ctx.lineTo(w / 2 - 2, -h * 0.22);
+  ctx.moveTo(-w / 2 + 2, h * 0.26); ctx.lineTo(w / 2 - 2, h * 0.26);
+  ctx.stroke();
+  // LE REGARD DE FLAMME, minuscule, et il ne clignote pas.
+  ctx.fillStyle = alpha(S.emis, 0.34);
+  ctx.beginPath(); ctx.arc(0, h * 0.04, Math.min(w, h) * 0.07, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LA BORNE DE CHARGE — A HAUTEUR DE GENOU, ET C EST LA SEULE DU THEME. Tout
+   l Usine est vertical : des machines, des racks, des poteaux. Une borne est
+   BASSE et son cable traine au sol vers l engin absent — c est le cable qui dit
+   qu il manque quelque chose ici, et c est tout le propos de la region. */
+function chargeur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.36);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.metal, 0.40);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LE BANDEAU de facade, plus clair : une borne a une face avant.
+  ctx.fillStyle = alpha("#c8ccd2", 0.14);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h * 0.30);
+  // LE CABLE, enroule puis lache au sol : il SORT de la boite.
+  ctx.strokeStyle = alpha("#15181c", 0.50);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  const d = (s & 1) ? 1 : -1;
+  ctx.moveTo(d * w * 0.30, h * 0.10);
+  ctx.quadraticCurveTo(d * w * 0.80, h * 0.28, d * w * 0.46, h * 0.46);
+  ctx.stroke();
+  // les deux voyants d etat, l un allume, l autre non.
+  ctx.fillStyle = alpha(S.emis, 0.30);
+  ctx.fillRect(-w * 0.18, h * 0.04, 2.5, 2.5);
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(w * 0.06, h * 0.04, 2.5, 2.5);
 }
 
 function coque(o, S) {

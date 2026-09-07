@@ -157,7 +157,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64,
              B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67,
              B_WAGON = 68, B_BALLE = 69, B_FERME = 70,
-             B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73;
+             B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73,
+             B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -243,6 +244,9 @@ export const BLOCS = [
   { key: "gabarit", lieu: "fonderie" },
   { key: "cabine", lieu: "fonderie" },
   { key: "brame", lieu: "fonderie" },
+  { key: "benne", lieu: "usine" },
+  { key: "chaudiere", lieu: "usine" },
+  { key: "chargeur", lieu: "usine" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -582,6 +586,51 @@ const OBSTACLES = {
        La remorque est le premier CHASSIS de l Usine — la silhouette existait a
        la Friche, la matiere non : une remorque en service n est pas une epave,
        et c est exactement ce que le couple silhouette x habillage permet. */
+    /* LA COUR — ON EST DEHORS, ET C EST LA PREMIERE FOIS DU THEME. Les huit
+       autres regions de l Usine sont des interieurs : un sol coule, un toit
+       implicite, une lumiere d atelier. Ici c est de la TERRE BATTUE, et rien
+       d autre du theme n en a. Des bennes alignees le long d un mur, ce qu on
+       sort du batiment et qu on n a pas encore emporte.
+       C est aussi la seule region ou la Friche et l Usine se touchent — sans
+       partager une seule famille. */
+    { cle: "cour", nom: "la cour", label: "La cour", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.24, y: 0.20, w: 0.100, h: 0.055, kind: B_BENNE },
+      { x: 0.24, y: 0.34, w: 0.100, h: 0.055, kind: B_BENNE },
+      { x: 0.76, y: 0.80, w: 0.100, h: 0.055, kind: B_BENNE, min: 1 },
+      { x: 0.76, y: 0.66, w: 0.100, h: 0.055, kind: B_BENNE, min: 1 },
+      { x: 0.26, y: 0.44, w: 0.100, h: 0.055, kind: B_BENNE, min: 2 },
+      { x: 0.70, y: 0.22, w: 0.052, h: 0.130, kind: B_MACHINE },
+      { x: 0.30, y: 0.78, w: 0.052, h: 0.130, kind: B_MACHINE, min: 1 },
+    ] },
+    /* LA CHAUFFERIE — DE LA BRIQUE, ET C EST LE SEUL ENDROIT CHAUD DE L USINE.
+       La Fonderie entiere est chaude ; ici la chaleur est CONFINEE dans trois
+       corps de chaudiere et le reste du theme n en sait rien. Le sol est
+       mineral parce qu on ne coule pas de beton sous une chaudiere.
+       Elle reprend l OCTOGONE du four : ce qui contient une combustion n a pas
+       de coin, quel que soit le thème. */
+    { cle: "chaufferie", nom: "la chaufferie", label: "La chaufferie", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.28, y: 0.30, w: 0.100, h: 0.130, kind: B_CHAUDIERE },
+      { x: 0.72, y: 0.70, w: 0.100, h: 0.130, kind: B_CHAUDIERE, min: 1 },
+      { x: 0.72, y: 0.30, w: 0.100, h: 0.130, kind: B_CHAUDIERE, min: 2 },
+      { x: 0.50, y: 0.86, w: 0.230, h: 0.036, kind: B_CHAINE },
+      { x: 0.14, y: 0.66, w: 0.048, h: 0.090, kind: B_POSTE },
+    ] },
+    /* LA ZONE DE CHARGE — LE SEUL SOL DU DEPOT QU ON AIT CHOISI. Une resine
+       epoxy teintee, lustree, avec ses cloques : quelqu un a voulu que ce coin
+       ait l air propre, et il vieillit mal. Les bornes de charge sont basses,
+       alignees, et chacune porte un cable au sol — la seule region du theme ou
+       l objet dominant soit a hauteur de genou.
+       On y range les engins la nuit : rien n y travaille, tout y attend. */
+    { cle: "charge", nom: "la zone de charge", label: "La zone de charge", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.22, y: 0.26, w: 0.036, h: 0.070, kind: B_CHARGEUR },
+      { x: 0.38, y: 0.26, w: 0.036, h: 0.070, kind: B_CHARGEUR },
+      { x: 0.62, y: 0.74, w: 0.036, h: 0.070, kind: B_CHARGEUR, min: 1 },
+      { x: 0.78, y: 0.74, w: 0.036, h: 0.070, kind: B_CHARGEUR, min: 1 },
+      { x: 0.22, y: 0.74, w: 0.036, h: 0.070, kind: B_CHARGEUR, min: 2 },
+      { x: 0.78, y: 0.26, w: 0.036, h: 0.070, kind: B_CHARGEUR, min: 2 },
+      // ni 0,50 : la braise de cauchemar occupe le centre exact de la cellule.
+      { x: 0.40, y: 0.50, w: 0.070, h: 0.048, kind: B_POSTE },
+    ] },
     { cle: "expedition", nom: "l expedition", label: "L'expédition", bords: [BORD_MUR, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
       { x: 0.12, y: 0.16, w: 0.070, h: 0.100, kind: B_QUAI },
       { x: 0.12, y: 0.34, w: 0.070, h: 0.100, kind: B_QUAI },
@@ -1542,6 +1591,13 @@ const TRAMES = {
     robotisee: { type: TR_COURONNE, kind: B_CAGE },
     // l expedition aligne ses quais sur un BORD : le peigne a echine de bord.
     expedition: { type: TR_PEIGNE, kind: B_QUAI },
+    // une cour aligne ses bennes le long d un bord : un peigne a echine de bord.
+    cour: { type: TR_PEIGNE, kind: B_BENNE },
+    // une chaufferie tourne autour de ses corps : une couronne, comme le puits.
+    chaufferie: { type: TR_COURONNE, kind: B_CHAUDIERE },
+    // une zone de charge est un CRIBLE de bornes : des appuis reguliers et rien
+    // entre eux, la meme primitive que le carrefour en beaucoup plus bas.
+    charge: { type: TR_CRIBLE, kind: B_CHARGEUR },
   },
   fonderie: {
     coulee: { type: TR_RUBAN, kind: B_CONDUITE },

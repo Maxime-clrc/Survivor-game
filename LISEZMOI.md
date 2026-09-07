@@ -8,6 +8,52 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### L'Usine passe de neuf régions à douze, et le dépôt gagne un treizième sol (0.43.29)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la cour** | `terre` | benne | peigne de bennes |
+| **la chaufferie** | `mineral` | chaudière | couronne |
+| **la zone de charge** | **`resine`** | borne de charge | crible de bornes |
+
+- **La cour est la première fois qu'on est DEHORS dans ce thème.** Les neuf
+  autres régions de l'Usine sont des intérieurs : un sol coulé, un toit
+  implicite, une lumière d'atelier. Ici c'est de la terre battue, et rien d'autre
+  du thème n'en a.
+- **La chaudière reprend l'octogone du four** — ce qui contient une combustion
+  n'a pas de coin, quel que soit le thème. Ce qui la sépare du four est la
+  **brique** : un four est en tôle, une chaudière est **maçonnée**, et c'est le
+  seul appareil de l'Usine qu'on ait bâti au lieu de boulonner.
+- **La borne de charge est à hauteur de genou**, et c'est la seule du thème :
+  tout l'Usine est vertical. Son câble traîne au sol vers l'engin **absent** —
+  c'est le câble qui dit qu'il manque quelque chose, et c'est tout le propos.
+
+**LE TREIZIÈME TRAITEMENT DE SOL, ET IL DÉBLOQUE LES CINQ THÈMES.** `verifierMatiere`
+exige un traitement différent par région d'un thème : à douze traitements, **douze
+régions par thème** était un plafond dur. `T_RESINE` le lève.
+
+**C'est aussi le seul sol du dépôt qu'on ait CHOISI pour sa couleur.** Les douze
+autres sont ce que la matière donne — du béton, du gravier, de la terre, de
+l'enrobé. Une résine époxy est coulée, teintée et lustrée par quelqu'un qui
+voulait que l'atelier ait l'air propre. Elle porte donc une **intention**, et
+elle a deux marques à elle : le **lustre** des passes de lisseuse, et les
+**cloques** là où l'humidité du support est remontée — la seule usure du dépôt
+qui soit un **contour** et non une tache. Un sol choisi vieillit mal, et il le
+montre.
+
+**Un rouge instructif** : `usine : « maintenance » et « charge » posent
+EXACTEMENT les mêmes 4 props`. Les deux tiraient le quartier de l'entretien seul.
+On charge des **engins**, donc la manutention vient avec — et les deux régions se
+séparent à 50 %.
+
+| | régions | avec une signature | traitements de sol |
+|---|---:|---:|---:|
+| 0.43.28 | 43 | 43 | 12 |
+| 0.43.29 | **46** | **46** | **13** |
+
+Usine 12, Fonderie 9, Friche 9, Nébuleuse 8, Secteur 8. Pire Jaccard bâti :
+**0,50**. Bâti de l'Usine : 7,09 % en cauchemar pour un plafond de 10 %.
+
 ### La Fonderie passe de six régions à neuf (0.43.28)
 
 | région | sol | famille à elle | trame |

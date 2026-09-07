@@ -10393,6 +10393,29 @@
                   43 regions, 43 signatures. Usine 9, Fonderie 9, Friche 9,
                   Nebuleuse 8, Secteur 8.
 
+    0.43.29 lot 30 L USINE PASSE DE NEUF REGIONS A DOUZE, ET LE DEPOT GAGNE UN
+                  TREIZIEME SOL. La cour est la premiere fois qu on est DEHORS
+                  dans ce theme — les neuf autres regions sont des interieurs, et
+                  rien d autre n a de terre battue. La chaudiere reprend
+                  l OCTOGONE du four : ce qui contient une combustion n a pas de
+                  coin, quel que soit le theme, et ce qui l en separe est la
+                  BRIQUE. La borne de charge est a hauteur de genou, la seule du
+                  theme, et son cable traine vers l engin ABSENT.
+                  LE TREIZIEME TRAITEMENT DE SOL DEBLOQUE LES CINQ THEMES :
+                  `verifierMatiere` exige un traitement different par region d un
+                  theme, donc a douze traitements, DOUZE REGIONS PAR THEME etait
+                  un plafond dur. `T_RESINE` le leve. C est aussi le seul sol du
+                  depot qu on ait CHOISI pour sa couleur — les douze autres sont
+                  ce que la matiere donne. Il a deux marques a lui : le LUSTRE
+                  des passes de lisseuse et les CLOQUES, la seule usure du depot
+                  qui soit un CONTOUR et non une tache.
+                  Un rouge instructif : la maintenance et la charge posaient
+                  EXACTEMENT les memes quatre props, toutes deux sur le quartier
+                  de l entretien seul. On charge des ENGINS, donc la manutention
+                  vient avec, et les deux se separent a 50 %.
+                  46 regions, 46 signatures, 13 traitements de sol. Usine 12,
+                  Fonderie 9, Friche 9, Nebuleuse 8, Secteur 8.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10401,4 +10424,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.28";
+export const VERSION = "0.43.29";

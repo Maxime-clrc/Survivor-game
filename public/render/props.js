@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -239,7 +239,10 @@ const QUARTIER = {
            [B_BAC]: 6, [B_HOTTE]: 6, [B_CAGE]: 0, [B_PORTIQUE]: 0,
            // le tunnel PRODUIT — c est la chaine qui le traverse ; la table
            // tournante fait CIRCULER, c est sa seule raison d etre.
-           [B_TUNNEL]: 0, [B_TOURNANTE]: 2 },
+           [B_TUNNEL]: 0, [B_TOURNANTE]: 2,
+           // une benne est ce qu on SORT (circulation), une chaudiere est de
+           // l ENERGIE, et une borne de charge entretient les engins.
+           [B_BENNE]: 2, [B_CHAUDIERE]: 5, [B_CHARGEUR]: 3 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
   // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.
@@ -1989,6 +1992,18 @@ const AIR = {
     robotisee: { dens: 0.72, ech: [0.62, 0.50], zones: [0, 4], matieres: [TRACE_FISSURES, TRACE_ROULAGE] },
     // l expedition manutentionne puis fait CIRCULER : l inverse du magasin.
     expedition: { dens: 0.70, ech: [0.80, 0.70], zones: [4, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
+    // la cour ne tire QUE la circulation : dehors, rien ne se fabrique et rien
+    // ne se range — on y sort ce qui part.
+    cour: { dens: 0.52, ech: [0.96, 0.94], zones: [2], matieres: [TRACE_ROULAGE, TRACE_DECHETS] },
+    // une chaufferie ENTRETIENT et se branche, comme le traitement, mais son
+    // quartier propre est celui de l energie et sa trace est le roussi.
+    chaufferie: { dens: 0.94, ech: [0.60, 0.56], zones: [5, 3], matieres: [TRACE_CENDRES, TRACE_ROUSSI] },
+    // la zone de charge ne tire QUE l entretien : rien n y travaille, tout y
+    // attend, et le sol garde la trace des cables qu on traine.
+    // PAS [3] SEUL : c est exactement l inventaire de la maintenance, et deux
+    // regions au meme vocabulaire sont une seule region. On charge des ENGINS,
+    // donc le quartier de la manutention vient avec celui de l entretien.
+    charge: { dens: 0.78, ech: [0.70, 0.64], zones: [3, 4], matieres: [TRACE_MARQUAGE, TRACE_RAYURES] },
   },
   fonderie: {
     // du metal chaud a ete POSE ici puis retire : un bord franc, pas une fuite.

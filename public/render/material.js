@@ -1235,7 +1235,7 @@ function macroSecteur(g, rand, usure) {
    =========================================================================== */
 const T_LISSE = 0, T_DALLE = 1, T_GRANULAT = 2, T_POUDRE = 3, T_AJOURE = 4,
       T_TECHNIQUE = 5, T_TERRE = 6, T_VEGETAL = 7, T_BITUME = 8, T_MINERAL = 9,
-      T_MOUILLE = 10, T_MARQUE = 11;
+      T_MOUILLE = 10, T_MARQUE = 11, T_RESINE = 12;
 
 const DENS = () => (gfx > GFX_LOW ? 1 : 0.4);
 
@@ -1365,6 +1365,50 @@ function trVegetal(g, rand, usure) {
   }
 }
 
+/* LA RESINE — LE SEUL SOL DU DEPOT QUI AIT ETE CHOISI POUR SA COULEUR. Les
+   douze autres sont ce que la matiere donne : du beton, du gravier, de la terre,
+   de l enrobe. Une resine epoxy est COULEE, teintee et lustree par quelqu un qui
+   voulait que l atelier ait l air propre — donc elle porte une intention, et
+   c est ce qui la rend lisible d une vue entiere.
+   Elle a deux marques a elle : le LUSTRE, une trainee claire diagonale qui suit
+   la passe de la lisseuse, et les CLOQUES, la ou l humidite du support est
+   remontee. Un sol choisi vieillit MAL, et il le montre. */
+function trResine(g, rand, usure) {
+  g.fillStyle = alpha("#2a4a52", 0.12);
+  g.fillRect(0, 0, TILE, TILE);
+  // LES PASSES DE LISSEUSE : des bandes larges, obliques, a peine plus claires.
+  for (let i = 0; i < 5; i++) {
+    const u = rand() * TILE;
+    const l = g.createLinearGradient(u, 0, u + 90, TILE);
+    l.addColorStop(0, alpha("#ffffff", 0));
+    l.addColorStop(0.5, alpha("#ffffff", 0.030 + rand() * 0.025));
+    l.addColorStop(1, alpha("#ffffff", 0));
+    g.fillStyle = l;
+    g.fillRect(u - 60, 0, 180, TILE);
+  }
+  // LES CLOQUES : des anneaux, pas des taches — la resine se DECOLLE en rond et
+  // laisse voir le support. C est la seule usure du depot qui soit un contour.
+  const n = Math.round(9 * DENS() * (0.5 + usure));
+  for (let i = 0; i < n; i++) {
+    const x = rand() * TILE, y = rand() * TILE, r = 4 + rand() * 11;
+    for (const dx of [-TILE, 0, TILE]) {
+      for (const dy of [-TILE, 0, TILE]) {
+        g.strokeStyle = alpha("#000000", 0.10 + rand() * 0.06);
+        g.lineWidth = 1.6;
+        g.beginPath(); g.arc(x + dx, y + dy, r, 0, Math.PI * 2); g.stroke();
+        g.fillStyle = alpha("#6a6258", 0.07);
+        g.beginPath(); g.arc(x + dx, y + dy, r * 0.8, 0, Math.PI * 2); g.fill();
+      }
+    }
+  }
+  // le grain antiderapant, fin et regulier : une resine d atelier en porte.
+  const m = Math.round(260 * DENS());
+  for (let i = 0; i < m; i++) {
+    g.fillStyle = alpha("#ffffff", 0.020 + rand() * 0.020);
+    g.fillRect(rand() * TILE, rand() * TILE, 1.2, 1.2);
+  }
+}
+
 function trBitume(g, rand, usure) {
   g.fillStyle = alpha("#000000", 0.10);
   g.fillRect(0, 0, TILE, TILE);
@@ -1456,6 +1500,7 @@ const TRAITEMENT = {
   [T_POUDRE]: trPoudre, [T_AJOURE]: trAjoure, [T_TECHNIQUE]: trTechnique,
   [T_TERRE]: trTerre, [T_VEGETAL]: trVegetal, [T_BITUME]: trBitume,
   [T_MINERAL]: trMineral, [T_MOUILLE]: trMouille, [T_MARQUE]: trMarque,
+  [T_RESINE]: trResine,
 };
 
 /* QUEL TRAITEMENT POUR QUELLE REGION. Une entree par loi d implantation, dans
@@ -1475,6 +1520,10 @@ const SOL_REGION = {
     chaine: T_LISSE, carrefour: T_MARQUE, maintenance: T_MOUILLE,
     utilites: T_GRANULAT, degagement: T_DALLE, magasin: T_POUDRE,
     traitement: T_AJOURE, robotisee: T_TECHNIQUE, expedition: T_BITUME,
+    // la cour est DEHORS — la seule terre battue d un theme d interieur —, la
+    // chaufferie est sur brique refractaire, et la charge est le seul sol du
+    // depot qu on ait CHOISI pour sa couleur.
+    cour: T_TERRE, chaufferie: T_MINERAL, charge: T_RESINE,
   },
   // le laminoir est couvert de CALAMINE : un sol qui scintille par plaques.
   fonderie: {
