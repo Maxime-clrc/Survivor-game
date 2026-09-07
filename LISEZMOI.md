@@ -8,6 +8,56 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Friche passe de six régions à neuf (0.43.27)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la voie** | `mineral` | wagon à l'arrêt | ruban de rame |
+| **la décharge** | `bitume` | balle compressée | crible de balles |
+| **la halle éventrée** | `lisse` | ferme tombée | peigne de fermes |
+
+- **La voie est la seule ligne droite du thème.** La Friche est faite de ce qui
+  s'est effondré au hasard ; une voie ferrée a été **tracée**, et elle tient
+  encore parce que le ballast ne pourrit pas.
+- **La décharge, ce sont des cubes** — et c'est tout ce qui la sépare de
+  l'effondrement. Un effondrement produit des morceaux de toutes les tailles ;
+  ici une machine a tout ramené au même gabarit. Le désordre est accidentel, la
+  décharge est un **rangement**.
+- **La halle éventrée est la seule région du dépôt où une structure soit lisible
+  À PLAT** : on voit le dessin de la charpente au sol, en obliques parallèles, et
+  on comprend le volume qui n'existe plus. Le contraire du chantier, qui montre
+  un volume qui n'existe **pas encore**.
+
+**LA FRICHE EST LE THÈME LE PLUS CHARGÉ EN DANGERS DU DÉPÔT, et ça se paie dans
+la table.** Quatorze dangers en cauchemar plus leurs **quatre miroirs**, et un
+tremblement de 40 px qui mange la garde contre les bords :
+
+| enveloppe cherchée | positions libres sur la cellule |
+|---|---:|
+| ferme oblique `0,31 × 0,15` | **0** |
+| ferme oblique `0,21 × 0,09` | 2 |
+| wagon `0,13 × 0,048` | 179 |
+
+La halle porte donc **deux** fermes et non trois, et elles tombent en sens
+**inverse** — deux charpentes ne s'effondrent pas du même côté. Le peigne de la
+trame en pose d'autres à l'échelle du quartier : la région reste lisible avec
+deux. Et la rame tient la bande centrale, la seule libre : les bandes `y = 0,24`
+et `y = 0,76` appartiennent presque entièrement aux dangers.
+
+**Le solveur de placement est plus strict que `verifierBiomes`, et c'est voulu.**
+Le vérificateur mesure des arènes **réelles**, où le clipping au quartier peut
+écarter une pose fautive ; le solveur teste les quatre miroirs contre **tous** les
+dangers des deux modes. Trois positions que le vérificateur laissait passer par
+chance ont été corrigées.
+
+| | régions | avec une signature |
+|---|---:|---:|
+| 0.43.26 | 37 | 37 |
+| 0.43.27 | **40** | **40** |
+
+Usine 9, Fonderie 6, Friche 9, Nébuleuse 8, Secteur 8. Pire Jaccard bâti :
+**0,50**, inchangé depuis le lot 22.
+
 ### La Nébuleuse passe de cinq régions à huit (0.43.26)
 
 | région | sol | famille à elle | trame |

@@ -10345,6 +10345,31 @@
                   apres.
                   37 regions, 37 signatures, 62 props tous atteints.
 
+    0.43.27 lot 28 LA FRICHE PASSE DE SIX REGIONS A NEUF. La voie (sol mineral,
+                  wagons a l arret) est la seule LIGNE DROITE du theme : la
+                  Friche est faite de ce qui s est effondre au hasard, une voie
+                  ferree a ete TRACEE. La decharge, ce sont des CUBES — un
+                  effondrement produit des morceaux de toutes les tailles, ici
+                  une machine a tout ramene au meme gabarit : le desordre est
+                  accidentel, la decharge est un rangement. La halle eventree est
+                  la seule region du depot ou une structure soit lisible A PLAT.
+                  LA FRICHE EST LE THEME LE PLUS CHARGE EN DANGERS DU DEPOT, et
+                  ca se paie dans la table : quatorze dangers en cauchemar plus
+                  leurs quatre miroirs, et un tremblement de 40 px qui mange la
+                  garde contre les bords. Une enveloppe de ferme de 0,31 x 0,15
+                  n a AUCUNE position libre sur la cellule ; a 0,21 x 0,09 il en
+                  reste deux. La halle porte donc deux fermes et non trois, en
+                  sens INVERSE — deux charpentes ne s effondrent pas du meme
+                  cote — et le peigne de la trame en pose d autres a l echelle du
+                  quartier.
+                  Le solveur de placement est plus strict que `verifierBiomes`,
+                  et c est voulu : le verificateur mesure des arenes REELLES ou
+                  le clipping au quartier peut ecarter une pose fautive, le
+                  solveur teste les quatre miroirs contre TOUS les dangers des
+                  deux modes. Trois positions passaient par chance.
+                  40 regions, 40 signatures. Usine 9, Fonderie 6, Friche 9,
+                  Nebuleuse 8, Secteur 8.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10353,4 +10378,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.26";
+export const VERSION = "0.43.27";

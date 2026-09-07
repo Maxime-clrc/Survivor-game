@@ -1489,6 +1489,9 @@ const SOL_REGION = {
     champ: T_TERRE, mur: T_GRANULAT, casse: T_MOUILLE,
     // le terrain repris est le seul VEGETAL du depot, et c est sa definition.
     chantier: T_DALLE, repris: T_VEGETAL, effondrement: T_POUDRE,
+    // du ballast, une aire refaite pour les camions, et la dalle d une halle :
+    // les trois seules surfaces de la Friche que personne n a laissees pourrir.
+    voie: T_MINERAL, decharge: T_BITUME, halle: T_LISSE,
   },
   // le chantier orbital n a pas de sol : ce qu on voit est le REPERAGE peint
   // sur son ossature.

@@ -14,7 +14,8 @@ import {
   B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE,
   B_ROCHE, B_SAS, B_ABRIBUS,
   B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE,
-  B_CULTURE, B_TORE, B_PARABOLE, gabaritsDe,
+  B_CULTURE, B_TORE, B_PARABOLE,
+  B_WAGON, B_BALLE, B_FERME, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -98,6 +99,7 @@ const HABILLAGE = {
   tunnel, tournante, convertisseur, talus, portail, dalle, roche, sas, abribus,
   vehicule, tourniquet, barriere, guerite,
   bacCulture, tore, paraboleSol,
+  wagon, balle, fermeTombee,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -171,6 +173,11 @@ const BLOC = {
     [B_TALUS]: { sil: "masse_molle", hab: "talus" },
     [B_PORTAIL]: { sil: "cadre", hab: "portail" },
     [B_DALLE]: { sil: "caisson", hab: "dalle" },
+    // LE MEME CONTENEUR QUE LE SECTEUR, une troisieme matiere : caisse,
+    // carrosserie, wagon — c est ce qu on met dessus qui dit lequel.
+    [B_WAGON]: { sil: "conteneur", hab: "wagon" },
+    [B_BALLE]: { sil: "caisson", hab: "balle" },
+    [B_FERME]: { sil: "barre", hab: "fermeTombee" },
   },
   nebuleuse: {
     [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
@@ -3204,6 +3211,120 @@ function paraboleSol(o, S) {
   ctx.strokeStyle = alpha("#c9ccd2", 0.20);
   ctx.lineWidth = 1.4;
   ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dx * 1.7, dy * 1.7); ctx.stroke();
+}
+
+
+/* LE WAGON — UNE CAISSE SUR BOGIES, ET C EST LES BOGIES QUI LE DISENT. Sans eux
+   c est un conteneur ; avec eux on comprend qu il etait sur une voie et qu il
+   n en bougera plus. La porte coulissante, decentree, donne le sens. */
+function wagon(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.rouille, 0.50);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LES BOGIES : deux masses sombres qui DEBORDENT sous la caisse.
+  ctx.fillStyle = alpha("#15181c", 0.62);
+  for (const u of [-0.30, 0.30]) {
+    if (long) ctx.fillRect(L * u - L * 0.09, h / 2 - 4, L * 0.18, 5);
+    else ctx.fillRect(w / 2 - 4, L * u - L * 0.09, 5, L * 0.18);
+  }
+  // LA PORTE, decentree : un wagon a un cote par lequel on charge.
+  const d = ((s & 1) ? -1 : 1) * L * 0.12;
+  ctx.strokeStyle = alpha("#000000", 0.36);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (long) {
+    ctx.moveTo(d - L * 0.16, -h / 2 + 3); ctx.lineTo(d - L * 0.16, h / 2 - 3);
+    ctx.moveTo(d + L * 0.16, -h / 2 + 3); ctx.lineTo(d + L * 0.16, h / 2 - 3);
+  } else {
+    ctx.moveTo(-w / 2 + 3, d - L * 0.16); ctx.lineTo(w / 2 - 3, d - L * 0.16);
+    ctx.moveTo(-w / 2 + 3, d + L * 0.16); ctx.lineTo(w / 2 - 3, d + L * 0.16);
+  }
+  ctx.stroke();
+  // les nervures de caisse, regulieres : c est l echelle.
+  ctx.strokeStyle = alpha("#000000", 0.16);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  for (let u = -L / 2 + 8; u < L / 2 - 6; u += 9) {
+    if (long) { ctx.moveTo(u, -h / 2 + 4); ctx.lineTo(u, h / 2 - 4); }
+    else { ctx.moveTo(-w / 2 + 4, u); ctx.lineTo(w / 2 - 4, u); }
+  }
+  ctx.stroke();
+}
+
+/* LA BALLE COMPRESSEE — UN CUBE, ET C EST TOUT LE PROPOS. L effondrement produit
+   des morceaux de toutes les tailles ; ici une machine a tout ramene au meme
+   gabarit. Les fils de cerclage sont ce qui prouve la compression : sans eux
+   c est un bloc, avec eux c est du dechet qu on a RANGE. */
+function balle(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#4e4a42", 0.58);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // LE GRAIN : des eclats de couleur pris dans la masse — du plastique, du
+  // papier, du metal, et c est ce qui dit que ce n est pas du beton.
+  const teintes = ["#8a5a3a", "#3a5a6a", "#7a7a52", "#6a3a4a"];
+  for (let i = 0; i < 22; i++) {
+    const x = -w / 2 + 3 + ((s * (i + 7)) % 991) / 991 * (w - 6);
+    const y = -h / 2 + 3 + ((s * (i + 19)) % 983) / 983 * (h - 6);
+    ctx.fillStyle = alpha(teintes[(s + i) & 3], 0.20);
+    ctx.fillRect(x, y, 2.4, 2);
+  }
+  // LES CERCLAGES : trois fils tendus, et c est eux qui font la balle.
+  ctx.strokeStyle = alpha("#c8ccd2", 0.24);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let i = 1; i < 4; i++) {
+    const u = -w / 2 + (w / 4) * i;
+    ctx.moveTo(u, -h / 2 + 1); ctx.lineTo(u, h / 2 - 1);
+  }
+  ctx.stroke();
+}
+
+/* LA FERME TOMBEE — UNE CHARPENTE VUE A PLAT, ET ON LIT LE VOLUME QUI N EXISTE
+   PLUS. C est un treillis : deux membrures paralleles et des diagonales entre
+   elles. La regularite des diagonales est ce qui la separe d une poutre — une
+   poutre est pleine, une ferme est AJOUREE, et pourtant elle remplit son
+   rectangle parce que la collision est une AABB. */
+function fermeTombee(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.34);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  ctx.strokeStyle = alpha(PROP.metal, 0.40);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  if (long) {
+    ctx.moveTo(-w / 2 + 1, -h / 2 + 2); ctx.lineTo(w / 2 - 1, -h / 2 + 2);
+    ctx.moveTo(-w / 2 + 1, h / 2 - 2); ctx.lineTo(w / 2 - 1, h / 2 - 2);
+  } else {
+    ctx.moveTo(-w / 2 + 2, -h / 2 + 1); ctx.lineTo(-w / 2 + 2, h / 2 - 1);
+    ctx.moveTo(w / 2 - 2, -h / 2 + 1); ctx.lineTo(w / 2 - 2, h / 2 - 1);
+  }
+  ctx.stroke();
+  // LES DIAGONALES, en zigzag : le treillis, et c est lui qu on reconnait.
+  ctx.strokeStyle = alpha(PROP.metal, 0.26);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const pas = Math.max(10, E * 0.9);
+  let haut = (s & 1) === 0;
+  for (let u = -L / 2 + 2; u < L / 2 - 2; u += pas) {
+    const v = Math.min(u + pas, L / 2 - 2);
+    if (long) {
+      ctx.moveTo(u, haut ? -h / 2 + 3 : h / 2 - 3);
+      ctx.lineTo(v, haut ? h / 2 - 3 : -h / 2 + 3);
+    } else {
+      ctx.moveTo(haut ? -w / 2 + 3 : w / 2 - 3, u);
+      ctx.lineTo(haut ? w / 2 - 3 : -w / 2 + 3, v);
+    }
+    haut = !haut;
+  }
+  ctx.stroke();
 }
 
 function coque(o, S) {

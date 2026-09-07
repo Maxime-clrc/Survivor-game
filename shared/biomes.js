@@ -155,7 +155,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_TALUS = 55, B_PORTAIL = 56, B_DALLE = 57,
              B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60,
              B_VEHICULE = 61, B_TOURNIQUET = 62, B_BARRIERE = 63, B_GUERITE = 64,
-             B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67;
+             B_CULTURE = 65, B_TORE = 66, B_PARABOLE = 67,
+             B_WAGON = 68, B_BALLE = 69, B_FERME = 70;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -235,6 +236,9 @@ export const BLOCS = [
   { key: "culture", lieu: "nebuleuse" },
   { key: "tore", lieu: "nebuleuse" },
   { key: "parabole", lieu: "nebuleuse" },
+  { key: "wagon", lieu: "friche" },
+  { key: "balle", lieu: "friche" },
+  { key: "ferme", lieu: "friche" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -872,6 +876,60 @@ const OBSTACLES = {
     ] },
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
+    /* LA VOIE — LA SEULE LIGNE DROITE DE TOUT LE THEME. La Friche est faite de
+       ce qui s est effondre au hasard ; une voie ferree a ete TRACEE, et elle
+       tient encore parce que le ballast ne pourrit pas. Les wagons sont a
+       l arret dessus, alignes, et c est l alignement qui se lit d une vue
+       entiere au milieu du desordre.
+       Sol MINERAL : du ballast, la seule pierre concassee du theme. */
+    { cle: "voie", nom: "la voie", label: "La voie", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      /* LA RAME TIENT LA BANDE CENTRALE, ET C EST LA SEULE QUI SOIT LIBRE. La
+         Friche porte quatorze dangers en cauchemar plus leurs quatre miroirs :
+         les bandes y = 0,24 et y = 0,76 lui appartiennent presque entierement.
+         L ecart entre deux wagons est de 80 px — `PASSAGE_MIN` tout juste, et
+         c est voulu : une rame se longe, elle ne se traverse pas. */
+      { x: 0.34, y: 0.52, w: 0.130, h: 0.048, kind: B_WAGON },
+      { x: 0.52, y: 0.52, w: 0.130, h: 0.048, kind: B_WAGON },
+      { x: 0.70, y: 0.52, w: 0.130, h: 0.048, kind: B_WAGON, min: 1 },
+      { x: 0.28, y: 0.16, w: 0.130, h: 0.048, kind: B_WAGON, min: 1 },
+      { x: 0.72, y: 0.16, w: 0.130, h: 0.048, kind: B_WAGON, min: 2 },
+      { x: 0.26, y: 0.82, w: 0.085, h: 0.070, kind: B_RUINE },
+      { x: 0.74, y: 0.32, w: 0.085, h: 0.070, kind: B_RUINE, min: 1 },
+    ] },
+    /* LA DECHARGE — DES CUBES, ET C EST CE QUI LA SEPARE DE L EFFONDREMENT. Un
+       effondrement produit des morceaux de toutes les tailles ; ici tout a ete
+       COMPRESSE au meme gabarit et empile par une machine. Le desordre est
+       accidentel, la decharge est un rangement — et c est exactement pour ca
+       qu on la reconnait.
+       Sol BITUME : une aire de retournement, refaite pour les camions. */
+    { cle: "decharge", nom: "la decharge", label: "La décharge", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.22, y: 0.20, w: 0.070, h: 0.070, kind: B_BALLE },
+      { x: 0.22, y: 0.32, w: 0.070, h: 0.070, kind: B_BALLE },
+      { x: 0.78, y: 0.80, w: 0.070, h: 0.070, kind: B_BALLE, min: 1 },
+      { x: 0.78, y: 0.68, w: 0.070, h: 0.070, kind: B_BALLE, min: 1 },
+      { x: 0.30, y: 0.20, w: 0.070, h: 0.070, kind: B_BALLE, min: 2 },
+      { x: 0.70, y: 0.80, w: 0.070, h: 0.070, kind: B_BALLE, min: 2 },
+      { x: 0.50, y: 0.50, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
+    ] },
+    /* LA HALLE EVENTREE — LE TOIT EST PAR TERRE, ET LES FERMES AVEC. C est la
+       seule region du depot ou une structure soit lisible A PLAT : on voit le
+       dessin de la charpente au sol, en obliques paralleles, et on comprend le
+       volume qui n existe plus. Le contraire du chantier, qui montre un volume
+       qui n existe pas ENCORE.
+       Sol LISSE : la dalle de la halle, la seule surface coulee de la Friche. */
+    { cle: "halle", nom: "la halle eventree", label: "La halle éventrée", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      /* DEUX FERMES ET PAS TROIS, ET LEUR ENVELOPPE FAIT 336 x 81 PX. La Friche
+         est le theme le plus charge en dangers du depot : une enveloppe de
+         0,31 x 0,15 n a AUCUNE position libre sur la cellule, les quatre
+         miroirs et les deux modes confondus. La bande centrale en accepte deux,
+         et elles tombent en sens INVERSE — deux charpentes ne s effondrent pas
+         du meme cote. Le peigne de la trame en pose d autres a l echelle du
+         quartier : la region reste lisible avec deux. */
+      { oblique: true, x0: 0.20, y0: 0.46, x1: 0.40, y1: 0.54, ep: 0.030, kind: B_FERME },
+      { oblique: true, x0: 0.60, y0: 0.54, x1: 0.80, y1: 0.46, ep: 0.030, kind: B_FERME, min: 1 },
+      { x: 0.72, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
+      { x: 0.28, y: 0.82, w: 0.085, h: 0.070, kind: B_RUINE, min: 1 },
+    ] },
     { cle: "effondrement", nom: "l effondrement", label: "L'effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       // ce qui est tombe ici n est pas un mur mais le SOL : deux dalles de plus.
       { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_DALLE },
@@ -1460,6 +1518,14 @@ const TRAMES = {
     // le vivant pousse en MASSE, pas en ligne : une couronne de bosquets.
     repris: { type: TR_COURONNE, kind: B_BOSQUET },
     effondrement: { type: TR_NEF, kind: B_MUR },
+    // une voie est un RUBAN de wagons : la premiere ligne droite du theme.
+    voie: { type: TR_RUBAN, kind: B_WAGON },
+    // une decharge est un CRIBLE de balles — meme primitive que le champ et la
+    // casse, et c est la famille qui separe les trois.
+    decharge: { type: TR_CRIBLE, kind: B_BALLE },
+    // une halle est un PEIGNE de fermes : le premier du theme, et c est le
+    // dessin d une charpente vue a plat.
+    halle: { type: TR_PEIGNE, kind: B_FERME },
   },
   nebuleuse: {
     derive: { type: TR_CRIBLE, kind: B_FRAGMENT },
