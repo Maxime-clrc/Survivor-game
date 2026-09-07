@@ -19,7 +19,8 @@ import {
   B_GABARIT, B_CABINE, B_BRAME,
   B_BENNE, B_CHAUDIERE, B_CHARGEUR,
   B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE,
-  B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, gabaritsDe,
+  B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE,
+  B_SILO, B_CRASSE, B_PAILLASSE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -108,6 +109,7 @@ const HABILLAGE = {
   benne, chaudiere, chargeur,
   fontaine, soutenement, bitte, banque,
   arrimage, navette, echangeur, foreuse,
+  silo, crasse, paillasse,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -168,6 +170,11 @@ const BLOC = {
     [B_CABINE]: { sil: "caisson", hab: "cabine" },
     // LA MEME PILE QUE LA CASSE ET LE MAGASIN : ce qui s empile a des aretes.
     [B_BRAME]: { sil: "pile", hab: "brame" },
+    [B_SILO]: { sil: "fut", hab: "silo" },
+    // LA MEME MASSE MOLLE QUE LE TAS DE MINERAI, et c est la couleur qui les
+    // separe : deux bouts de la meme chaine, une silhouette, deux matieres.
+    [B_CRASSE]: { sil: "masse_molle", hab: "crasse" },
+    [B_PAILLASSE]: { sil: "caisson", hab: "paillasse" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -3806,6 +3813,97 @@ function foreuse(o, S) {
   const d = (s & 1) ? 1 : -1;
   if (long) ctx.fillRect(d > 0 ? w / 2 - 5 : -w / 2 + 1, -h / 2 - 1, 4, h + 2);
   else ctx.fillRect(-w / 2 - 1, d > 0 ? h / 2 - 5 : -h / 2 + 1, w + 2, 4);
+}
+
+
+/* LE SILO — LA SEULE VERTICALE DE LA FONDERIE, ET ELLE SE LIT A SA COIFFE. Vu de
+   dessus un cylindre n est qu un disque ; ce qui dit la hauteur est l anneau de
+   passerelle qui le ceinture et l ombre portee plus longue que les autres. Le
+   cone de vidange au pied, decentre, donne le cote par lequel on soutire. */
+function silo(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const rx = w * 0.46, ry = h * 0.46;
+  ctx.fillStyle = alpha("#000000", 0.48);
+  ctx.beginPath(); ctx.ellipse(w * 0.05, h * 0.07, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createLinearGradient(-rx, 0, rx, 0);
+  g.addColorStop(0, alpha("#8a8f96", 0.52));
+  g.addColorStop(0.45, alpha("#666c74", 0.56));
+  g.addColorStop(1, alpha("#2e3238", 0.58));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  // L ANNEAU DE PASSERELLE : c est lui qui dit qu on est haut.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.48);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.84, ry * 0.84, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha("#000000", 0.20);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * rx * 0.84, Math.sin(a) * ry * 0.84);
+    ctx.lineTo(Math.cos(a) * rx, Math.sin(a) * ry);
+  }
+  ctx.stroke();
+  // LE CONE DE VIDANGE, decentre : le cote par lequel on soutire.
+  const d = (s & 3) / 3 - 0.5;
+  ctx.fillStyle = alpha("#20242a", 0.50);
+  ctx.beginPath(); ctx.ellipse(d * rx * 0.7, d * ry * 0.7, rx * 0.26, ry * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LA CRASSE — LA MEME MASSE MOLLE QUE LE TAS DE MINERAI, ET C EST LA COULEUR QUI
+   LES SEPARE. Le minerai est rouge et mat, la scorie refroidie est GRISE et
+   VITREUSE : elle accroche des points de lumiere que rien d autre du theme ne
+   fait. Deux bouts de la meme chaine, une silhouette, deux matieres. */
+function crasse(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const g = ctx.createRadialGradient(-w * 0.12, -h * 0.16, 0, 0, 0, Math.max(w, h) * 0.55);
+  g.addColorStop(0, alpha("#7a7c80", 0.60));
+  g.addColorStop(0.55, alpha("#4a4c50", 0.62));
+  g.addColorStop(1, alpha("#232528", 0.60));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LE GRAIN vitreux : des eclats CLAIRS a aretes, pas des points ronds.
+  for (let i = 0; i < 60; i++) {
+    const a = ((s * (i + 3)) % 997) / 997 * Math.PI * 2;
+    const d = Math.sqrt(((s * (i + 11)) % 991) / 991) * 0.46;
+    const x = Math.cos(a) * w * d, y = Math.sin(a) * h * d;
+    ctx.fillStyle = alpha((i & 3) === 0 ? "#cfd6dc" : "#000000", 0.10 + ((s >> (i % 7)) & 3) * 0.03);
+    ctx.fillRect(x, y, 1.8, 1.4);
+  }
+  // la CRETE, un trait clair : un crassier a une pente, comme un tas.
+  ctx.strokeStyle = alpha("#9aa2aa", 0.18);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, h * 0.06, Math.min(w, h) * 0.26, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.stroke();
+}
+
+/* LA PAILLASSE — BASSE, LONGUE, ET SON PLATEAU EST CLAIR. C est le seul meuble
+   de la Fonderie dont la face superieure soit plus claire que son socle : tout
+   le reste du theme est sombre et chaud. Les eprouvettes alignees dessus font
+   un rythme fin que rien d autre du lieu ne porte. */
+function paillasse(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h;
+  ctx.fillStyle = alpha("#000000", 0.38);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#3e4348", 0.52);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LE PLATEAU, clair, decale d un cote : une paillasse a une face de travail.
+  const d = (s & 1) ? 1 : -1;
+  ctx.fillStyle = alpha("#cfd2cc", 0.26);
+  if (long) ctx.fillRect(-w / 2 + 2, d > 0 ? -h / 2 + 2 : h / 2 - 7, w - 4, 5);
+  else ctx.fillRect(d > 0 ? -w / 2 + 2 : w / 2 - 7, -h / 2 + 2, 5, h - 4);
+  // LES EPROUVETTES : un rythme fin, et c est le seul du theme.
+  ctx.fillStyle = alpha(PROP.verre, 0.30);
+  for (let u = -L / 2 + 6; u < L / 2 - 4; u += 7) {
+    if (long) ctx.fillRect(u, d > 0 ? -h / 2 + 3 : h / 2 - 6, 2, 3);
+    else ctx.fillRect(d > 0 ? -w / 2 + 3 : w / 2 - 6, u, 3, 2);
+  }
+  // le bandeau d eclairage sous le plateau : une lumiere qui ne vacille pas.
+  ctx.fillStyle = alpha("#e8eef4", 0.10);
+  if (long) ctx.fillRect(-w / 2 + 4, d > 0 ? h / 2 - 4 : -h / 2 + 2, w - 8, 2);
+  else ctx.fillRect(d > 0 ? w / 2 - 4 : -w / 2 + 2, -h / 2 + 4, 2, h - 8);
 }
 
 function coque(o, S) {

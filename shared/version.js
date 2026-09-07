@@ -10464,6 +10464,30 @@
                   54 regions, 54 signatures, 67 props, 84 familles baties.
                   Usine 12, Fonderie 9, Friche 9, Nebuleuse 12, Secteur 12.
 
+    0.43.32 lot 33 LA FONDERIE PASSE DE NEUF REGIONS A DOUZE, ET LA REGLE DES SIX
+                  QUARTIERS ETAIT FAUSSE. Les silos sont la seule VERTICALE du
+                  theme — tout le reste est bas — et ce qui dit la hauteur d un
+                  cylindre vu de dessus est l anneau de passerelle. La crasse
+                  est la meme masse molle que le tas de minerai : le minerai est
+                  rouge et mat, la scorie refroidie est grise et VITREUSE, et
+                  c est la couleur qui les separe. Le laboratoire est le seul
+                  endroit de la Fonderie ou rien ne soit ni chaud ni sale.
+                  LA REGLE ECRITE AU LOT 32 OUBLIAIT LES SINGLETONS : quatre
+                  quartiers donnent six paires PLUS quatre singletons, soit dix
+                  combinaisons, et cinq en donnent quinze — assez pour douze
+                  regions. Ce qui a force le sixieme a la Nebuleuse n est donc
+                  pas le COMPTE mais le RECOUVREMENT : une paire qui contient un
+                  singleton partage tout son inventaire, et le Jaccard depasse
+                  70 % des que les deux zones ont des props en commun. La
+                  Fonderie s en tire avec CINQ.
+                  Et deux regions au meme nombre de poses ne se separent pas :
+                  les silos et le laboratoire avaient six poses chacun et un
+                  encombrement a 7 % pres, donc 9 % d ecart au mieux sur six
+                  axes pour un plancher de 15. Un silo de moins, et le nombre
+                  devient ce qui les distingue.
+                  57 regions, 57 signatures, 69 props, 87 familles baties.
+                  Usine 12, Fonderie 12, Friche 9, Nebuleuse 12, Secteur 12.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10472,4 +10496,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.31";
+export const VERSION = "0.43.32";

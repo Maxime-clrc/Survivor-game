@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Fonderie passe de neuf régions à douze, et la règle des six quartiers était fausse (0.43.32)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **les silos** | `bitume` | silo | crible de cylindres |
+| **le crassier** | `terre` | crasse | couronne |
+| **le laboratoire** | `resine` | paillasse | peigne de paillasses |
+
+- **Les silos sont la seule verticale de la Fonderie.** Tout le thème est bas :
+  des fours trapus, des bassins, des châssis au sol. Ce qui dit la hauteur d'un
+  cylindre vu de dessus est **l'anneau de passerelle** qui le ceinture.
+- **La crasse est la même masse molle que le tas de minerai, et c'est la couleur
+  qui les sépare** : le minerai est rouge et mat, la scorie refroidie est grise
+  et **vitreuse** — elle accroche des points de lumière que rien d'autre du thème
+  ne fait. Deux bouts de la même chaîne, une silhouette, deux matières.
+- **Le laboratoire est le seul endroit de la Fonderie où rien ne soit ni chaud ni
+  sale.** Il est à la modelerie ce que le contrôle est à la coulée : l'avant et
+  l'après d'une chaîne dont tout le reste est le milieu.
+
+**LA RÈGLE DES SIX QUARTIERS, ÉCRITE AU LOT 32, ÉTAIT FAUSSE.** Elle disait :
+« quatre quartiers donnent six paires, cinq en donnent dix, il en faut quinze
+pour douze régions ». Elle oubliait les **singletons** — une région peut ne tirer
+qu'un quartier, et plusieurs le font déjà.
+
+| quartiers | paires | singletons | combinaisons |
+|---:|---:|---:|---:|
+| 4 | 6 | 4 | **10** — insuffisant pour 12 |
+| **5** | 10 | 5 | **15** — suffisant |
+
+Ce qui a réellement forcé le sixième quartier à la Nébuleuse n'est donc pas le
+**compte** mais le **recouvrement** : une paire qui contient un singleton partage
+tout l'inventaire de ce singleton, et quand les deux zones ont des props en
+commun le Jaccard dépasse 70 % — le champ d'antennes à `[0, 3]` contenait le dock
+à **71 %**. La Fonderie s'en tire avec **cinq**.
+
+**Et deux régions au même nombre de poses ne se séparent pas.** Les silos et le
+laboratoire avaient tous deux six poses et un encombrement à 7 % près : **9 %
+d'écart au mieux** sur six axes, pour un plancher de 15. Un silo de moins, et le
+nombre devient ce qui les distingue.
+
+| | régions | avec une signature | props | familles bâties |
+|---|---:|---:|---:|---:|
+| 0.43.31 | 54 | 54 | 67 | 84 |
+| 0.43.32 | **57** | **57** | **69** | **87** |
+
+Usine 12, Fonderie 12, Friche 9, Nébuleuse 12, Secteur 12. Pire Jaccard bâti :
+**0,50**.
+
 ### La Nébuleuse passe de huit régions à douze, et six quartiers deviennent une règle (0.43.31)
 
 | région | sol | famille à elle | trame |

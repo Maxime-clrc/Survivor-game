@@ -1534,6 +1534,9 @@ const SOL_REGION = {
     // le seul sol MARQUE du theme (on trace au sol la ou on ne fond pas), le
     // seul TECHNIQUE (une cabine est un appareil) et le seul AJOURE.
     modelerie: T_MARQUE, ebarbage: T_TECHNIQUE, brames: T_AJOURE,
+    // une aire de livraison refaite pour les citernes, de la terre sous un
+    // crassier, et le troisieme sol de resine du depot.
+    silos: T_BITUME, crassier: T_TERRE, labo: T_RESINE,
   },
   /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE
      BRUTE — le seul sol de la Friche qui ne soit pas encore abime. */

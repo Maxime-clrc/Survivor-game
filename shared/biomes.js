@@ -160,7 +160,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_GABARIT = 71, B_CABINE = 72, B_BRAME = 73,
              B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76,
              B_FONTAINE = 77, B_SOUTENEMENT = 78, B_BITTE = 79, B_BANQUE = 80,
-             B_ARRIMAGE = 81, B_NAVETTE = 82, B_ECHANGEUR = 83, B_FOREUSE = 84;
+             B_ARRIMAGE = 81, B_NAVETTE = 82, B_ECHANGEUR = 83, B_FOREUSE = 84,
+             B_SILO = 85, B_CRASSE = 86, B_PAILLASSE = 87;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -257,6 +258,9 @@ export const BLOCS = [
   { key: "navette", lieu: "nebuleuse" },
   { key: "echangeur", lieu: "nebuleuse" },
   { key: "foreuse", lieu: "nebuleuse" },
+  { key: "silo", lieu: "fonderie" },
+  { key: "crasse", lieu: "fonderie" },
+  { key: "paillasse", lieu: "fonderie" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -819,6 +823,47 @@ const OBSTACLES = {
       { x: 0.74, y: 0.26, w: 0.090, h: 0.060, kind: B_BRAME, min: 1 },
       { x: 0.26, y: 0.50, w: 0.090, h: 0.060, kind: B_BRAME, min: 2 },
       { x: 0.64, y: 0.52, w: 0.120, h: 0.190, kind: B_FOUR },
+    ] },
+    /* LES SILOS — LA SEULE VERTICALE DE LA FONDERIE. Tout le theme est BAS :
+       des fours trapus, des bassins, des chassis au sol. Trois cylindres hauts
+       et serres se voient d une vue entiere et donnent enfin une echelle a un
+       lieu qui n en avait pas.
+       Sol BITUME : une aire de livraison, refaite pour les camions-citernes. */
+    { cle: "silos", nom: "les silos", label: "Les silos", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.26, y: 0.30, w: 0.080, h: 0.080, kind: B_SILO },
+      { x: 0.26, y: 0.46, w: 0.080, h: 0.080, kind: B_SILO },
+      { x: 0.74, y: 0.70, w: 0.080, h: 0.080, kind: B_SILO, min: 1 },
+      { x: 0.74, y: 0.54, w: 0.080, h: 0.080, kind: B_SILO, min: 1 },
+      // QUATRE SILOS ET PAS CINQ : a cinq, la region avait exactement la meme
+      // densite et le meme encombrement que le laboratoire — 9 % d ecart au
+      // mieux pour un plancher de 15. Le nombre est ce qui les separe.
+      { x: 0.60, y: 0.20, w: 0.180, h: 0.048, kind: B_CONDUITE },
+    ] },
+    /* LE CRASSIER — CE QU ON JETTE QUAND ON A FINI, ET C EST DEHORS. La scorie
+       refroidie s empile sans forme, comme le minerai, mais elle est GRISE et
+       VITREUSE la ou le minerai est rouge et mat : deux masses molles, deux
+       bouts de chaine, et la couleur suffit a dire lequel.
+       Sol de TERRE : personne ne coule de dalle sous un crassier. */
+    { cle: "crassier", nom: "le crassier", label: "Le crassier", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.28, y: 0.26, w: 0.120, h: 0.110, kind: B_CRASSE },
+      { x: 0.72, y: 0.74, w: 0.120, h: 0.110, kind: B_CRASSE, min: 1 },
+      { x: 0.72, y: 0.24, w: 0.090, h: 0.080, kind: B_CRASSE, min: 2 },
+      { x: 0.14, y: 0.66, w: 0.070, h: 0.070, kind: B_CUVE },
+      { x: 0.86, y: 0.34, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+    ] },
+    /* LE LABORATOIRE — ON MESURE, DONC ON NE TOUCHE A RIEN. Des paillasses
+       basses et alignees sous une lumiere qui ne vacille pas : c est le seul
+       endroit de la Fonderie ou rien ne soit ni chaud ni sale, et le seul du
+       theme dont le sol ait ete CHOISI.
+       Il est a la modelerie ce que le controle est a la coulee : l avant et
+       l apres d une chaine ou tout le reste est le milieu. */
+    { cle: "labo", nom: "le laboratoire", label: "Le laboratoire", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.30, y: 0.28, w: 0.160, h: 0.044, kind: B_PAILLASSE },
+      { x: 0.30, y: 0.44, w: 0.160, h: 0.044, kind: B_PAILLASSE },
+      { x: 0.70, y: 0.72, w: 0.160, h: 0.044, kind: B_PAILLASSE, min: 1 },
+      { x: 0.70, y: 0.56, w: 0.160, h: 0.044, kind: B_PAILLASSE, min: 1 },
+      { x: 0.30, y: 0.60, w: 0.160, h: 0.044, kind: B_PAILLASSE, min: 2 },
+      { x: 0.60, y: 0.20, w: 0.180, h: 0.048, kind: B_CONDUITE },
     ] },
     { cle: "puits", nom: "le puits", label: "Le puits", bords: [BORD_OUVERT, BORD_OUVERT, BORD_OUVERT, BORD_OUVERT], poser: [
       { x: 0.35, y: 0.50, w: 0.120, h: 0.190, kind: B_FOUR },
@@ -1736,6 +1781,14 @@ const TRAMES = {
     // un parc a brames est un CRIBLE, comme le parc a minerai — et c est la
     // famille qui separe le mou du cassant.
     brames: { type: TR_CRIBLE, kind: B_BRAME },
+    // des silos sont un CRIBLE de cylindres : le meme reseau que les cuves, en
+    // haut au lieu d etre en large.
+    silos: { type: TR_CRIBLE, kind: B_SILO },
+    // un crassier tourne autour de son point de deversement : une couronne.
+    crassier: { type: TR_COURONNE, kind: B_CRASSE },
+    // un laboratoire est un PEIGNE de paillasses, comme la modelerie l est de
+    // rayonnages — et c est la famille qui separe les deux.
+    labo: { type: TR_PEIGNE, kind: B_PAILLASSE },
   },
   friche: {
     champ: { type: TR_CRIBLE, kind: B_RUINE },

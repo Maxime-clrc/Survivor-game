@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, exclusivesDe, loiCle, B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_SILO, B_CRASSE, B_PAILLASSE, B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE, B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE, B_BENNE, B_CHAUDIERE, B_CHARGEUR, B_GABARIT, B_CABINE, B_BRAME, B_WAGON, B_BALLE, B_FERME, B_CULTURE, B_TORE, B_PARABOLE, B_VEHICULE, B_TOURNIQUET, B_BARRIERE, B_GUERITE, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -49,7 +49,8 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_VANNE = 59, P_FUT = 60, P_DOUCHE = 61,
       P_REFLECTEUR = 62, P_BOITIER = 63,
       P_BANC = 64, P_JARDINIERE = 65, P_CORBEILLE = 66,
-      P_CARGO = 67, P_SANGLE = 68;
+      P_CARGO = 67, P_SANGLE = 68,
+      P_EPROUVETTE = 69, P_REGISTRE = 70;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -89,7 +90,8 @@ const TABLE = {
   // s'oublie pas au catalogue. Elle garde le caillebotis et le tuyau — une
   // fonderie a des grilles de sol et des conduites, ce n'est pas de l'emprunt.
   fonderie: [P_POCHE, P_RIGOLE, P_RIGOLE, P_MOULE, P_MOULE, P_TREMIE,
-             P_OUTILLAGE, P_LINGOTS, P_SCORIE, P_SCORIE, P_CAILLEBOTIS, P_TUYAU],
+             P_OUTILLAGE, P_LINGOTS, P_SCORIE, P_SCORIE, P_CAILLEBOTIS, P_TUYAU,
+             P_EPROUVETTE, P_REGISTRE],
   // le TUBE reste, et il n'est plus tire que par elle : un neon qui gresille est
   // le seul reste ALLUME que ce lieu s'autorise, et son comportement dit
   // l'abandon mieux qu'une rouille de plus. Le coffret, lui, part — un voyant
@@ -167,6 +169,16 @@ const ZONES = {
     [P_MOULE, P_MOULE, P_TREMIE, P_OUTILLAGE],
     [P_LINGOTS, P_LINGOTS, P_CAILLEBOTIS, P_OUTILLAGE],
     [P_SCORIE, P_SCORIE, P_TUYAU, P_CAILLEBOTIS],
+    /* UN CINQUIEME QUARTIER, ET CINQ SUFFISENT — LA REGLE DU LOT 32 ETAIT TROP
+       FORTE. Quatre quartiers donnent six paires PLUS quatre singletons, soit
+       dix combinaisons pour douze regions : c est ca qui manquait, pas les
+       paires seules. A cinq quartiers on en a quinze, donc assez.
+       Ce qui a force le sixieme a la Nebuleuse n est pas le COMPTE mais le
+       RECOUVREMENT : une paire qui contient un singleton partage tout
+       l inventaire de ce singleton, et quand les deux zones ont des props en
+       commun le Jaccard depasse 70 % — le champ d antennes a [0, 3] contenait
+       le dock a 71 %. Celui-ci est CE QU ON CONTROLE. */
+    [P_EPROUVETTE, P_REGISTRE, P_OUTILLAGE, P_TUYAU],
   ],
   // elle a ETE ABANDONNEE : ce qui repousse, ce qui a ete casse, ce qui fermait,
   // et le peu qui reste allume.
@@ -270,7 +282,10 @@ const QUARTIER = {
               [B_CONVERTISSEUR]: 0,
               // on MET EN FORME dans une modelerie, et ce qui SORT est ebarbe
               // puis empile : deux fois le quartier de l aval.
-              [B_GABARIT]: 1, [B_CABINE]: 2, [B_BRAME]: 2 },
+              [B_GABARIT]: 1, [B_CABINE]: 2, [B_BRAME]: 2,
+              // un silo est en amont de ce qui COULE, une crasse est du REBUT,
+              // et une paillasse est ce qu on CONTROLE.
+              [B_SILO]: 0, [B_CRASSE]: 3, [B_PAILLASSE]: 4 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
@@ -744,6 +759,8 @@ function dessin(p, ox, oy) {
     case P_CORBEILLE: return corbeille(p, ox, oy);
     case P_CARGO: return cargo(p, ox, oy);
     case P_SANGLE: return sangle(p, ox, oy);
+    case P_EPROUVETTE: return eprouvette(p, ox, oy);
+    case P_REGISTRE: return registre(p, ox, oy);
     case P_PNEUS: return pneus(p, ox, oy);
     case P_MOTEUR: return moteur(p, ox, oy);
     case P_PARPAINGS: return parpaings(p, ox, oy);
@@ -2052,6 +2069,12 @@ const AIR = {
     ebarbage: { dens: 1.10, ech: [0.58, 0.54], zones: [2], matieres: [TRACE_ECLATS, TRACE_ROUSSI] },
     // un parc a brames tire la mise en forme et le REBUT : les chutes de coupe.
     brames: { dens: 0.74, ech: [0.88, 0.82], zones: [1, 3], matieres: [TRACE_RAYURES, TRACE_FISSURES] },
+    // des silos tirent ce qui COULE et ce qu on CONTROLE : on pese ce qu on livre.
+    silos: { dens: 0.70, ech: [0.92, 0.86], zones: [0, 4], matieres: [TRACE_POUSSIERE, TRACE_COULEE] },
+    // un crassier tire le REBUT et ce qu on controle : on analyse la scorie.
+    crassier: { dens: 1.00, ech: [0.76, 0.88], zones: [3, 4], matieres: [TRACE_CENDRES, TRACE_INTERSTICE] },
+    // un laboratoire ne tire QUE ce qu on controle : rien n y entre d autre.
+    labo: { dens: 0.90, ech: [0.54, 0.50], zones: [4], matieres: [TRACE_MARQUAGE, TRACE_REFLET] },
   },
   friche: {
     // ce qui repousse suit les JOINTS du sol : sans les lignes, c est de la
@@ -2866,6 +2889,46 @@ function sangle(p, ox, oy) {
   ctx.stroke();
   ctx.fillStyle = alpha(PROP.metalDark, 0.52);
   ctx.fillRect(l / 2 - 2, -2, 4, 4);
+}
+
+/* L EPROUVETTE — LE PLUS PETIT OBJET DU DEPOT, ET LE SEUL TRANSPARENT. Un tube
+   sur son portoir : deux traits verticaux et un menisque clair. C est le seul
+   prop dont on lise le CONTENU par transparence. */
+function eprouvette(p, ox, oy) {
+  const w = 7 + p.p * 4, h = 9 + p.p * 5;
+  ctx.fillStyle = alpha(PROP.ombre, 0.26);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.40);
+  ctx.fillRect(-w / 2, h * 0.24, w, h * 0.26);
+  for (let i = 0; i < 3; i++) {
+    const x = -w / 2 + 1.5 + i * (w - 3) / 3;
+    ctx.fillStyle = alpha(PROP.verre, 0.30);
+    ctx.fillRect(x, -h / 2, 2, h * 0.72);
+    ctx.fillStyle = alpha("#c8b060", 0.26);
+    ctx.fillRect(x, h * 0.06, 2, h * 0.16);
+  }
+}
+
+/* LE REGISTRE — DU PAPIER, ET C EST LA SEULE FOIS DU DEPOT. Un classeur ouvert,
+   des feuilles qui depassent : dans un theme de fonte et de scorie, une chose
+   qui pourrait bruler et qui n a pas brule dit qu on tient encore des comptes
+   quelque part. */
+function registre(p, ox, oy) {
+  const w = 12 + p.p * 6, h = 9 + p.p * 4;
+  ctx.fillStyle = alpha(PROP.ombre, 0.28);
+  ctx.fillRect(-w / 2 + ox, -h / 2 + oy, w, h);
+  ctx.fillStyle = alpha("#8a7a5a", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#d8d2c0", 0.30);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w / 2 - 2, h - 2);
+  ctx.strokeStyle = alpha(PROP.ombre, 0.30);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, -h / 2 + 1); ctx.lineTo(0, h / 2 - 1);
+  ctx.stroke();
+  // une feuille qui DEPASSE : sans elle c est une brique.
+  ctx.fillStyle = alpha("#e8e4d6", 0.24);
+  ctx.fillRect(w / 2 - 2, -h * 0.2, 4, h * 0.34);
 }
 
 // LE CARTER DEPOSE — une coque courbe posee a l envers, avec ses trous de
