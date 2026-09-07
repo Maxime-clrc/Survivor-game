@@ -10488,6 +10488,29 @@
                   57 regions, 57 signatures, 69 props, 87 familles baties.
                   Usine 12, Fonderie 12, Friche 9, Nebuleuse 12, Secteur 12.
 
+    0.43.33 lot 34 LA FRICHE PASSE A DOUZE, ET LES CINQ THEMES Y SONT. La
+                  sous-station est le seul alignement VERTICAL du theme : la
+                  Friche est faite de choses tombees, ces chapelets tiennent
+                  encore parce qu on ne demonte pas un poste sous tension et que
+                  personne ne sait s il l est. La station-service fait lire une
+                  ABSENCE — des pompes par paires, a distance reguliere, et
+                  cette regularite dit qu il y avait un auvent. La lagune est le
+                  quatrieme creux du depot et le premier de la Friche : la fosse
+                  est noire, le bac est plein, la fontaine renvoie le ciel,
+                  celui-ci est SEC et ce qui repousse dedans est un INDICE.
+                  Les six socles sont en QUINCONCE, et c est la carte des
+                  dangers qui l a impose : une rangee franche a y = 0,24
+                  traversait deux nappes de 121 et 105 px plus leurs quatre
+                  miroirs. Le quinconce garde l alignement VERTICAL, qui est ce
+                  qui se lit, et abandonne l horizontal, qui ne se lit pas.
+                  ETAT DU PLAN 39 : 60 regions contre 20 a l ouverture, et 60
+                  ont une famille exclusive contre ZERO. 91 familles baties
+                  contre 15, 69 props contre 48, 21 primitives de trace contre
+                  9, 13 traitements de sol contre UN, 6 primitives de trame
+                  contre aucune. Aucun theme ne touche plus le plafond de bati,
+                  donc plus aucune signature ne disparait par manque de place.
+                  Pire Jaccard bati : 0,50 sur 330 paires.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10496,4 +10519,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.32";
+export const VERSION = "0.43.33";

@@ -20,7 +20,8 @@ import {
   B_BENNE, B_CHAUDIERE, B_CHARGEUR,
   B_FONTAINE, B_SOUTENEMENT, B_BITTE, B_BANQUE,
   B_ARRIMAGE, B_NAVETTE, B_ECHANGEUR, B_FOREUSE,
-  B_SILO, B_CRASSE, B_PAILLASSE, gabaritsDe,
+  B_SILO, B_CRASSE, B_PAILLASSE,
+  B_ISOLATEUR, B_POMPE, B_DECANTEUR, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -110,6 +111,7 @@ const HABILLAGE = {
   fontaine, soutenement, bitte, banque,
   arrimage, navette, echangeur, foreuse,
   silo, crasse, paillasse,
+  isolateur, pompe, decanteur,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -204,6 +206,11 @@ const BLOC = {
     [B_WAGON]: { sil: "conteneur", hab: "wagon" },
     [B_BALLE]: { sil: "caisson", hab: "balle" },
     [B_FERME]: { sil: "barre", hab: "fermeTombee" },
+    [B_ISOLATEUR]: { sil: "mat", hab: "isolateur" },
+    [B_POMPE]: { sil: "machine", hab: "pompe" },
+    // LE QUATRIEME CREUX DU DEPOT, et le premier de la Friche : la fosse est
+    // noire, le bac est plein, la fontaine renvoie le ciel, celui-ci est SEC.
+    [B_DECANTEUR]: { sil: "nappe", hab: "decanteur", creux: true },
   },
   nebuleuse: {
     [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
@@ -3904,6 +3911,104 @@ function paillasse(o, S) {
   ctx.fillStyle = alpha("#e8eef4", 0.10);
   if (long) ctx.fillRect(-w / 2 + 4, d > 0 ? h / 2 - 4 : -h / 2 + 2, w - 8, 2);
   else ctx.fillRect(d > 0 ? w / 2 - 4 : -w / 2 + 2, -h / 2 + 4, 2, h - 8);
+}
+
+
+/* LE CHAPELET D ISOLATEURS — DES DISQUES EMPILES, ET C EST LE SEUL RYTHME
+   VERTICAL DE LA FRICHE. Vu de dessus : une pile d anneaux concentriques de plus
+   en plus larges, et le brin de cable qui part en oblique. La porcelaine est
+   CLAIRE et propre — c est la seule chose du theme que le temps n a pas salie,
+   parce que rien n adhere sur du verre. */
+function isolateur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const r = Math.min(w, h) * 0.46;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.50);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // LES JUPES : des anneaux de plus en plus larges vers le bas.
+  const long = w >= h, L = long ? w : h;
+  const n = Math.max(3, (L / 9) | 0);
+  for (let i = 0; i < n; i++) {
+    const u = -L / 2 + 4 + i * (L - 8) / n;
+    const k = 0.55 + (i / n) * 0.45;
+    ctx.strokeStyle = alpha("#d8dce0", 0.24);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    if (long) ctx.ellipse(u, 0, 2, r * k, 0, 0, Math.PI * 2);
+    else ctx.ellipse(0, u, r * k, 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // LE BRIN, en oblique : il part vers un pylone qu on ne voit pas.
+  ctx.strokeStyle = alpha("#15181c", 0.40);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(long ? L / 2 - 2 : 0, long ? 0 : L / 2 - 2);
+  ctx.lineTo(long ? L / 2 + 8 : ((s & 1) ? 9 : -9), long ? ((s & 1) ? 9 : -9) : L / 2 + 8);
+  ctx.stroke();
+}
+
+/* LA POMPE — UN VOLUCOMPTEUR ET SON PISTOLET AU BOUT DU FLEXIBLE. Le flexible
+   traine au sol, decroche, et c est lui qui dit que la station a ete abandonnee
+   en service plutot que fermee proprement. La face avant est plus claire : un
+   afficheur mort. */
+function pompe(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#7a5a4a", 0.50);
+  ctx.fillRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  // L AFFICHEUR : une plaque claire, morte.
+  ctx.fillStyle = alpha("#c8ccd2", 0.20);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.26);
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2 + 5, -h / 2 + 5, w - 10, h * 0.14);
+  // LE FLEXIBLE, decroche et traine : il SORT du bloc.
+  const d = (s & 1) ? 1 : -1;
+  ctx.strokeStyle = alpha("#1a1a1c", 0.46);
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(d * w * 0.34, -h * 0.06);
+  ctx.quadraticCurveTo(d * w * 0.80, h * 0.20, d * w * 0.52, h * 0.52);
+  ctx.stroke();
+  // le socle, plus large : un ilot de pompe est monte sur un massif.
+  ctx.strokeStyle = alpha("#000000", 0.26);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-w / 2 + 0.5, h / 2 - 5, w - 1, 4);
+}
+
+/* LE BASSIN DE DECANTATION — UN CREUX SEC, ET C EST LE PREMIER DE LA FRICHE. La
+   fosse du puits est noire, le bac du traitement est plein, la fontaine du parc
+   renvoie le ciel ; celui-ci est VIDE et son fond est craquele. Ce qui repousse
+   dedans pousse mieux qu ailleurs, parce qu il y reste de l humidite — c est la
+   seule vegetation du depot qui soit un INDICE. */
+function decanteur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  // LA MARGELLE, mince : un bassin technique n a pas de bord confortable.
+  ctx.fillStyle = alpha("#5a564e", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#000000", 0.34);
+  ctx.fillRect(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8);
+  ctx.fillStyle = alpha("#3e3a32", 0.50);
+  ctx.fillRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
+  // LE FOND CRAQUELE : des traits courts, sans direction commune.
+  ctx.strokeStyle = alpha("#000000", 0.26);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 14; i++) {
+    const x = -w / 2 + 6 + ((s * (i + 7)) % 991) / 991 * (w - 12);
+    const y = -h / 2 + 6 + ((s * (i + 19)) % 983) / 983 * (h - 12);
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 5 - ((s >> i) & 7), y + 4 - ((s >> (i + 2)) & 5));
+  }
+  ctx.stroke();
+  // CE QUI REPOUSSE AU FOND, plus dense qu ailleurs : l humidite est restee.
+  for (let i = 0; i < 9; i++) {
+    const x = -w / 2 + 8 + ((s * (i + 11)) % 977) / 977 * (w - 16);
+    const y = -h / 2 + 8 + ((s * (i + 23)) % 971) / 971 * (h - 16);
+    ctx.fillStyle = alpha(PROP.vert, 0.16 + ((s >> i) & 3) * 0.04);
+    ctx.beginPath(); ctx.arc(x, y, 2.4 + ((s >> (i + 1)) & 3), 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function coque(o, S) {

@@ -1547,6 +1547,9 @@ const SOL_REGION = {
     // du ballast, une aire refaite pour les camions, et la dalle d une halle :
     // les trois seules surfaces de la Friche que personne n a laissees pourrir.
     voie: T_MINERAL, decharge: T_BITUME, halle: T_LISSE,
+    // la dalle d un poste — la seule surface de la Friche qu on n ait pas ose
+    // toucher —, le seul marquage au sol du theme, et des caillebotis.
+    sousstation: T_TECHNIQUE, pompe: T_MARQUE, lagune: T_AJOURE,
   },
   // le chantier orbital n a pas de sol : ce qu on voit est le REPERAGE peint
   // sur son ossature.

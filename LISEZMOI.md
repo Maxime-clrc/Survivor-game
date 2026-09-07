@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La Friche passe à douze, et les cinq thèmes y sont (0.43.33)
+
+| région | sol | famille à elle | trame |
+|---|---|---|---|
+| **la sous-station** | `technique` | chapelet d'isolateurs | crible de socles |
+| **la station-service** | `marque` | pompe | peigne d'îlots |
+| **la lagune** | `ajoure` | bassin de décantation | nef à ciel ouvert |
+
+- **La sous-station est le seul alignement VERTICAL du thème.** La Friche est
+  faite de choses tombées ; ces chapelets tiennent encore debout parce qu'on ne
+  démonte pas un poste sous tension, et personne ne sait s'il l'est. La
+  porcelaine est aussi la seule chose du thème que le temps n'a pas salie : rien
+  n'adhère sur du verre.
+- **La station-service fait lire une ABSENCE.** Les pompes sont par paires, à
+  distance régulière, et cette régularité au milieu du désordre dit qu'il y avait
+  un auvent au-dessus.
+- **La lagune est le quatrième creux du dépôt et le premier de la Friche.** La
+  fosse du puits est noire, le bac du traitement est plein, la fontaine du parc
+  renvoie le ciel ; celui-ci est **sec**, son fond est craquelé, et ce qui
+  repousse dedans pousse mieux qu'ailleurs — la seule végétation du dépôt qui
+  soit un **indice**.
+
+**Les six socles sont en QUINCONCE, et c'est la carte des dangers qui l'a
+imposé.** Une rangée franche à `y = 0,24` traversait la nappe de 121 px de
+`(0,42 ; 0,24)` et celle de 105 px de `(0,86 ; 0,24)`, plus leurs quatre miroirs.
+Le quinconce garde l'alignement **vertical**, qui est ce qui se lit, et abandonne
+l'alignement horizontal, qui ne se lit pas.
+
+---
+
+**LES CINQ THÈMES SONT À DOUZE RÉGIONS.**
+
+| | ouverture du plan 39 | 0.43.33 |
+|---|---:|---:|
+| régions | 20 | **60** |
+| régions avec une famille exclusive | **0** | **60** |
+| familles bâties | 15 | **91** |
+| props | 48 | **69** |
+| primitives de trace | 9 | **21** |
+| traitements de sol | **1** | **13** |
+| primitives de trame | **0** | 6 |
+
+Bâti par thème en cauchemar, pour un plafond de 10 % : usine 7,09 %, fonderie
+7,48 %, friche 5,46 %, nébuleuse 7,02 %, secteur 5,27 % — aucun thème ne touche
+plus le plafond, donc plus aucune signature ne disparaît par manque de place.
+
+Pire Jaccard bâti entre deux régions d'un thème : **0,50**, sur 330 paires.
+
 ### La Fonderie passe de neuf régions à douze, et la règle des six quartiers était fausse (0.43.32)
 
 | région | sol | famille à elle | trame |

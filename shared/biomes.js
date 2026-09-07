@@ -161,7 +161,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_BENNE = 74, B_CHAUDIERE = 75, B_CHARGEUR = 76,
              B_FONTAINE = 77, B_SOUTENEMENT = 78, B_BITTE = 79, B_BANQUE = 80,
              B_ARRIMAGE = 81, B_NAVETTE = 82, B_ECHANGEUR = 83, B_FOREUSE = 84,
-             B_SILO = 85, B_CRASSE = 86, B_PAILLASSE = 87;
+             B_SILO = 85, B_CRASSE = 86, B_PAILLASSE = 87,
+             B_ISOLATEUR = 88, B_POMPE = 89, B_DECANTEUR = 90;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -261,6 +262,9 @@ export const BLOCS = [
   { key: "silo", lieu: "fonderie" },
   { key: "crasse", lieu: "fonderie" },
   { key: "paillasse", lieu: "fonderie" },
+  { key: "isolateur", lieu: "friche" },
+  { key: "pompe", lieu: "friche" },
+  { key: "decanteur", lieu: "friche" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -1082,6 +1086,53 @@ const OBSTACLES = {
       { x: 0.72, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
       { x: 0.28, y: 0.82, w: 0.085, h: 0.070, kind: B_RUINE, min: 1 },
     ] },
+    /* LA SOUS-STATION — CE QUI RESTE ALLUME QUAND PLUS RIEN NE L EST. Des
+       chapelets d isolateurs sur leurs socles : fins, hauts, reguliers, et le
+       seul alignement VERTICAL du theme. La Friche est faite de choses tombees ;
+       ceux-la tiennent encore debout parce qu on ne demonte pas un poste sous
+       tension, et personne ne sait s il l est.
+       Sol TECHNIQUE : la dalle d un poste, la seule surface entretenue de la
+       Friche — ou plutot la seule qu on n ait pas osé toucher. */
+    { cle: "sousstation", nom: "la sous-station", label: "La sous-station", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      /* LES SIX SOCLES SONT DECALES EN QUINCONCE, ET C EST LA CARTE DES DANGERS
+         QUI L A IMPOSE. Une rangee franche a y = 0,24 traversait la nappe de
+         121 px de (0,42 ; 0,24) et celle de 105 px de (0,86 ; 0,24) — plus
+         leurs quatre miroirs. Le quinconce garde l alignement VERTICAL, qui est
+         ce qui se lit, et abandonne l alignement horizontal, qui ne se lit pas. */
+      { x: 0.22, y: 0.24, w: 0.026, h: 0.110, kind: B_ISOLATEUR },
+      { x: 0.32, y: 0.30, w: 0.026, h: 0.110, kind: B_ISOLATEUR },
+      { x: 0.68, y: 0.70, w: 0.026, h: 0.110, kind: B_ISOLATEUR, min: 1 },
+      { x: 0.78, y: 0.76, w: 0.026, h: 0.110, kind: B_ISOLATEUR, min: 1 },
+      { x: 0.22, y: 0.70, w: 0.026, h: 0.110, kind: B_ISOLATEUR, min: 2 },
+      { x: 0.78, y: 0.30, w: 0.026, h: 0.110, kind: B_ISOLATEUR, min: 2 },
+      { x: 0.50, y: 0.50, w: 0.085, h: 0.070, kind: B_RUINE },
+    ] },
+    /* LA STATION-SERVICE — DES ILOTS SOUS UN AUVENT QUI N EST PLUS LA. Les
+       pompes sont par PAIRES, a distance reguliere, et cette regularite au
+       milieu du desordre dit qu il y avait un toit dessus : on lit une absence,
+       et c est la seule fois du theme.
+       Sol MARQUE : le seul marquage au sol de la Friche, parce qu il fallait
+       dire aux voitures ou se ranger. */
+    { cle: "pompe", nom: "la station-service", label: "La station-service", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.26, y: 0.30, w: 0.045, h: 0.080, kind: B_POMPE },
+      { x: 0.26, y: 0.46, w: 0.045, h: 0.080, kind: B_POMPE },
+      { x: 0.74, y: 0.70, w: 0.045, h: 0.080, kind: B_POMPE, min: 1 },
+      { x: 0.74, y: 0.54, w: 0.045, h: 0.080, kind: B_POMPE, min: 1 },
+      { x: 0.50, y: 0.16, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE },
+      { x: 0.50, y: 0.54, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE, min: 2 },
+    ] },
+    /* LA LAGUNE — UN BASSIN VIDE, ET C EST LE PREMIER CREUX DE LA FRICHE. Le
+       depot en a trois — la fosse du puits, le bac du traitement, la fontaine du
+       parc — et aucun n etait ici. Celui-ci est ASSECHE : le fond est craquele
+       et ce qui repousse dedans pousse mieux qu ailleurs, parce qu il y reste de
+       l humidite. Sol AJOURE : les caillebotis de service en font le tour. */
+    { cle: "lagune", nom: "la lagune", label: "La lagune", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.30, y: 0.42, w: 0.150, h: 0.130, kind: B_DECANTEUR },
+      { x: 0.70, y: 0.58, w: 0.150, h: 0.130, kind: B_DECANTEUR, min: 1 },
+      { x: 0.70, y: 0.42, w: 0.110, h: 0.090, kind: B_DECANTEUR, min: 2 },
+      { x: 0.26, y: 0.62, w: 0.085, h: 0.070, kind: B_RUINE },
+      { x: 0.74, y: 0.24, w: 0.085, h: 0.070, kind: B_RUINE, min: 1 },
+    ] },
     { cle: "effondrement", nom: "l effondrement", label: "L'effondrement", bords: [BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE, BORD_ENCOMBRE], poser: [
       // ce qui est tombe ici n est pas un mur mais le SOL : deux dalles de plus.
       { x: 0.30, y: 0.45, w: 0.110, h: 0.040, kind: B_DALLE },
@@ -1809,6 +1860,13 @@ const TRAMES = {
     // une halle est un PEIGNE de fermes : le premier du theme, et c est le
     // dessin d une charpente vue a plat.
     halle: { type: TR_PEIGNE, kind: B_FERME },
+    // une sous-station est un CRIBLE de socles : des appuis reguliers et rien
+    // entre eux, la meme primitive que le chantier en beaucoup plus haut.
+    sousstation: { type: TR_CRIBLE, kind: B_ISOLATEUR },
+    // une station-service aligne ses ilots : un peigne, comme la halle.
+    pompe: { type: TR_PEIGNE, kind: B_POMPE },
+    // une lagune est une NEF a ciel ouvert : deux parois de bassins et un fond.
+    lagune: { type: TR_NEF, kind: B_DECANTEUR },
   },
   nebuleuse: {
     derive: { type: TR_CRIBLE, kind: B_FRAGMENT },
