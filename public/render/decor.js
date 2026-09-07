@@ -7,7 +7,7 @@ import { souffleDe } from "./dangers.js";
 import { couleeDe, floorPattern, fondDe, macroPattern } from "./material.js";
 import { bornesDistricts, clesDe, loiCle, mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
-import { contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, ledDe, silhouetteBloc } from "./blocs.js";
+import { H_BAS, H_HAUT, contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, hauteurDe, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
 import { biomeKey, celluleH, celluleW, districtsCarte, loiAt, solDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
@@ -1355,7 +1355,10 @@ export function drawArenaBounds(b) {
   }
 }
 const OBST_RELIEF = 7;
-const OBST_OMBRE = 9;
+/* TROIS DECALAGES, ET LE MOYEN EST CELUI D AVANT. Ce qui rampe porte a 5 px, ce
+   qui est a hauteur d homme a 9, ce qui monte a 16 — voir `HAUTEUR` dans
+   `blocs.js`, qui declare laquelle des trois va a quelle silhouette. */
+const OMBRE_H = [5, 9, 16];
 
 export function drawObstacles(cover) {
   const list = obstaclesActifs();
@@ -1375,11 +1378,11 @@ export function drawObstacles(cover) {
        a 319 blocs mesures selon le lieu — et la vue en montre le trente-sixieme
        depuis 0.40.1. Les dangers, les baies, l amer et la coulee cullaient deja ;
        les blocs etaient les seuls a ne pas le faire. Le trace le plus large est l
-       ombre portee, a `OBST_OMBRE` du bord, et `dessinerLed` trace une ligne sur
+       ombre portee, au plus `OMBRE_H[2]` du bord, et `dessinerLed` trace une ligne sur
        l arete et non un halo — la marge est donc la demi-boite et ces deux
        decalages. ET LA COUVERTURE SE LIT APRES : `cover.find` est lineaire, donc
        le faire avant le cull etait un balayage par bloc et par image. */
-    if (!inView(o.x, o.y, Math.max(o.w, o.h) / 2 + OBST_OMBRE + OBST_RELIEF + 4)) continue;
+    if (!inView(o.x, o.y, Math.max(o.w, o.h) / 2 + OMBRE_H[2] + OBST_RELIEF + 4)) continue;
     const k = o.maxHp > 0 ? (cover?.find(c => c[0] === i)?.[1] ?? 1) : 1;
     if (o.maxHp > 0 && k <= 0) continue;
 
@@ -1396,7 +1399,8 @@ export function drawObstacles(cover) {
     const creux = estCreux(biome, o.kind);
     if (!creux) {
       ctx.save();
-      ctx.translate(o.x + dir[0] * OBST_OMBRE, o.y + dir[1] * OBST_OMBRE);
+      const dOmbre = OMBRE_H[hauteurDe(biome, o.kind)];
+      ctx.translate(o.x + dir[0] * dOmbre, o.y + dir[1] * dOmbre);
       silhouetteBloc(ctx, o, biome);
       ctx.fillStyle = alpha("#000000", 0.34);
       ctx.fill();

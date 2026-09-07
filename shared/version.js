@@ -10576,6 +10576,27 @@
                   douze regions d un theme — douze taux identiques, c est le
                   reglage d avant sous un autre nom.
 
+    0.43.37 lot 38 UNE BITTE ET UNE BANDE DE TRAME PROJETAIENT LA MEME OMBRE.
+                  `OBST_OMBRE` etait un decalage FIXE de 9 px pour tous les
+                  blocs, d une bitte d amarrage de 40 px a une bande de trame de
+                  3 680 : un pylone de 22 x 207 et une dalle de 176 x 36
+                  projetaient exactement la meme. Ce qui decale une ombre portee
+                  est la HAUTEUR, qu un rendu vu de dessus ne modelise pas —
+                  mais la SILHOUETTE la porte deja : un mat est haut et fin, un
+                  mur bas est long et bas, une nappe est un creux.
+                  TROIS VALEURS ET PAS UNE ECHELLE CONTINUE : 5 px pour ce qui
+                  rampe, 9 pour ce qui est a hauteur d homme — la valeur
+                  d avant —, 16 pour ce qui monte. Au-dela de trois, l oeil ne
+                  lit plus une hauteur, il lit du bruit.
+                  TROISIEME DEFAUT DE LA MEME FORME SUR CE PLAN : `lumDir()`
+                  unifiait la DIRECTION de l ombre, `ombre()` en a unifie la
+                  FORCE au lot 35, et le DECALAGE etait la derniere des trois a
+                  ne rien dire de l objet.
+                  `verifierBlocs` croise `SILHOUETTE` et `HAUTEUR` dans les deux
+                  sens — le repli est `H_MOYEN`, donc une silhouette oubliee
+                  prendrait l ombre d avant sans rien lever. Et `OBST_OMBRE` est
+                  SUPPRIMEE : sa seule lecture etait morte.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10584,4 +10605,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.36";
+export const VERSION = "0.43.37";

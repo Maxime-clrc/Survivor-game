@@ -8,6 +8,38 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Une bitte et une bande de trame projetaient la même ombre (0.43.37)
+
+`OBST_OMBRE` était un décalage **fixe de 9 px** pour tous les blocs — d'une bitte
+d'amarrage de 40 px à une bande de trame de **3 680**. Un pylône de 22 × 207 et
+une dalle de 176 × 36 projetaient exactement la même ombre.
+
+Ce qui décale une ombre portée est la **hauteur**, et un rendu vu de dessus ne la
+modélise pas — mais la **silhouette la porte déjà** : un mât est haut et fin, un
+mur bas est bas et long, une nappe est un creux.
+
+| hauteur | décalage | silhouettes |
+|---|---:|---|
+| bas | **5 px** | `mur_bas`, `nappe`, `debris`, `quai`, `barre`, `eclat`, `conduite` |
+| moyen | 9 px | `caisson`, `machine`, `chassis`, `conteneur`, `ouverte`, `cadre`, `masse_molle` |
+| haut | **16 px** | `mat`, `fut`, `octogone`, `palettier`, `pile`, `travee`, `pan`, `devanture` |
+
+**Trois valeurs et pas une échelle continue** : au-delà de trois, l'œil ne lit
+plus une hauteur, il lit du bruit. Le moyen reste 9 px, donc rien ne bouge pour
+les deux tiers du dépôt — c'est le bas et le haut qui se séparent enfin.
+
+C'est le troisième défaut de la même forme corrigé sur ce plan : `lumDir()`
+unifiait la **direction** de l'ombre, `ombre()` en a unifié la **force** au lot
+35, et le **décalage** était la dernière des trois à ne rien dire de l'objet.
+
+`verifierBlocs` croise `SILHOUETTE` et `HAUTEUR` **dans les deux sens** : le repli
+de `hauteurDe` est `H_MOYEN`, donc une silhouette oubliée prendrait l'ombre
+d'avant sans que rien ne lève — exactement la classe de défaut que ce plan a payée
+quatre fois. Preuve : retirer `mat` sort `silhouette « mat » : aucune hauteur
+declaree`.
+
+Et `OBST_OMBRE` est **supprimée**, pas conservée : sa seule lecture était morte.
+
 ### Le taux de baie était le dernier axe resté au thème (0.43.36)
 
 `BAIE_TAUX` était une **constante unique à 0,38** : ce qu'on voit **à travers** le

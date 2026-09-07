@@ -667,6 +667,21 @@ différentes.
   - `npm run constantes-check` refuse désormais un littéral à cette place. Il
     lit les sources, ce qu'un navigateur ne peut pas faire, et la règle est
     nommée par son **point de passage** et non par un fichier.
+- **L'OMBRE PORTÉE D'UN BLOC SUIT SA HAUTEUR, EN TROIS VALEURS.** `OBST_OMBRE`
+  était un décalage **fixe de 9 px** pour tous les blocs — d'une bitte de 40 px à
+  une bande de trame de **3 680**. Ce qui décale une ombre est la hauteur, qu'un
+  rendu vu de dessus ne modélise pas ; mais la **silhouette la porte déjà**.
+  `hauteurDe(cle, kind)` rend `H_BAS` (5 px), `H_MOYEN` (9, la valeur d'avant)
+  ou `H_HAUT` (16).
+  - **Trois valeurs et pas une échelle continue** : au-delà de trois, l'œil ne
+    lit plus une hauteur, il lit du bruit. Les deux tiers du dépôt ne bougent
+    pas — c'est le bas et le haut qui se séparent enfin.
+  - **Troisième défaut de la même forme sur ce plan** : `lumDir()` unifiait la
+    **direction**, `ombre()` a unifié la **force** (lot 35), et le **décalage**
+    était la dernière des trois à ne rien dire de l'objet.
+  - `verifierBlocs` croise `SILHOUETTE` et `HAUTEUR` **dans les deux sens** : le
+    repli est `H_MOYEN`, donc une silhouette oubliée prendrait l'ombre d'avant
+    sans que rien ne lève.
 - **LE TAUX DE BAIE EST PAR RÉGION, ET C'EST LE DERNIER DES DIX AXES À QUITTER
   LE THÈME.** `BAIE_TAUX` était une constante unique à 0,38 : ce qu'on voit **à
   travers** le sol disait le thème et jamais l'endroit. `BAIE_REGION[theme][cle]`

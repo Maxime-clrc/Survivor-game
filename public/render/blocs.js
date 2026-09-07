@@ -78,6 +78,33 @@ function graine(o) {
    memes appels, dans le meme ordre ; seule la table change de forme, et
    `verifierBlocs` gagne de quoi voir une silhouette ou un habillage que plus
    personne ne tire. */
+/* LA HAUTEUR IMPLICITE D UNE SILHOUETTE, ET C EST ELLE QUI PORTE L OMBRE.
+   `OBST_OMBRE` etait un decalage FIXE de 9 px pour tous les blocs, d une bitte
+   d amarrage de 40 px a une bande de trame de 3 680 : un pylone de 22 x 207 et
+   une dalle de 176 x 36 projetaient exactement la meme ombre. Or ce qui decale
+   une ombre portee est la HAUTEUR, et un rendu vu de dessus ne la modelise pas —
+   mais la SILHOUETTE la porte deja : un mat est haut et fin, un mur bas est bas
+   et long, une nappe est un creux.
+   TROIS VALEURS ET PAS UNE ECHELLE CONTINUE : au-dela de trois, l oeil ne lit
+   plus une hauteur, il lit du bruit. Le moyen reste 9 px, donc rien ne bouge pour
+   les deux tiers du depot — c est le bas et le haut qui se separent enfin. */
+export const H_BAS = 0, H_MOYEN = 1, H_HAUT = 2;
+const HAUTEUR = {
+  // ce qui rampe : on marche presque dessus, l ombre est courte.
+  mur_bas: H_BAS, nappe: H_BAS, debris: H_BAS, quai: H_BAS, barre: H_BAS,
+  eclat: H_BAS, conduite: H_BAS,
+  // ce qui monte : un mat, un cylindre, un empilement.
+  mat: H_HAUT, fut: H_HAUT, octogone: H_HAUT, palettier: H_HAUT, pile: H_HAUT,
+  travee: H_HAUT, pan: H_HAUT, devanture: H_HAUT,
+  // et le reste, qui est a hauteur d homme.
+  caisson: H_MOYEN, machine: H_MOYEN, chassis: H_MOYEN, conteneur: H_MOYEN,
+  ouverte: H_MOYEN, cadre: H_MOYEN, masse_molle: H_MOYEN,
+};
+
+export function hauteurDe(cle, kind) {
+  return HAUTEUR[formeCle(cle, kind)] ?? H_MOYEN;
+}
+
 const SILHOUETTE = {
   barre: formeChaine, caisson: formeCellule, machine: formeMachine,
   octogone: formeOctogone, conduite: formeConduite, fut: formeCuve,
@@ -286,6 +313,10 @@ for (const cle of Object.keys(BLOC)) REPLI[cle] = BLOC[cle][Object.keys(BLOC[cle
 function fiche(cle, kind) {
   const t = BLOC[cle] ?? BLOC.usine;
   return t[kind] ?? REPLI[cle] ?? REPLI.usine;
+}
+
+function formeCle(cle, kind) {
+  return (BLOC[cle] ?? BLOC.usine)[kind]?.sil ?? "caisson";
 }
 
 export function silhouetteBloc(g, o, cle) {
@@ -704,6 +735,16 @@ function formeCarcasse(g, o) {
 // `verifierFeedback()` pour les recettes de son.
 export function verifierBlocs() {
   const soucis = [];
+  /* TOUTE SILHOUETTE A UNE HAUTEUR, ET AUCUNE HAUTEUR N EST ORPHELINE. Le repli
+     de `hauteurDe` est `H_MOYEN`, donc une silhouette oubliee prendrait
+     l ombre d avant sans que rien ne leve — exactement la classe de defaut que
+     ce plan a payee quatre fois. */
+  for (const sil of Object.keys(SILHOUETTE)) {
+    if (HAUTEUR[sil] === undefined) soucis.push(`silhouette « ${sil} » : aucune hauteur declaree`);
+  }
+  for (const sil of Object.keys(HAUTEUR)) {
+    if (!SILHOUETTE[sil]) soucis.push(`hauteur pour « ${sil} », qui n est pas une silhouette`);
+  }
   /* TROIS TABLES A CROISER AU LIEU D UNE, ET LES DEUX SENS COMPTENT. Une fiche
      qui nomme une silhouette absente replie sur `caisson` EN SILENCE — le meme
      defaut que `fiche()` a deja paye —, et une silhouette ecrite que plus aucune
