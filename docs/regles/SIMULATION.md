@@ -649,12 +649,23 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     une charpente : la Friche **tremble de ±40 px par cellule** et la même poutre
     y fermait des îlots (3 à 11 cases inatteignables sur quatre graines). Une
     marge qui tient sans tremblement ne tient pas avec.
-- **UNE RÉGION DOIT POSSÉDER UN OBJET, ET C'EST CE QUI MANQUAIT.** Mesure à
-  l'ouverture du plan 39 : **zéro région sur vingt** avait une famille bâtie à
-  elle — les vingt employaient **les trois** familles de leur thème, donc un
-  biome ne pouvait être qu'un rangement des mêmes formes. Une région porte
-  désormais une **signature** : au moins une famille que personne d'autre du
-  thème n'emploie.
+- **UNE RÉGION DOIT POSSÉDER UN OBJET, ET `verifierSignature()` LE TIENT.**
+  Mesure à l'ouverture du plan 39 : **zéro région sur vingt** avait une famille
+  bâtie à elle — les vingt employaient **les trois** familles de leur thème, donc
+  un biome ne pouvait être qu'un rangement des mêmes formes. Aujourd'hui **31 sur
+  31**, et le plancher du vérificateur est **zéro** : il est arithmétique, chaque
+  thème portant plus de familles que de régions (16 pour 9 à l'Usine). Le jour où
+  un thème aura plus de régions que de familles, la borne montera d'elle-même.
+  - **Le plafond de recouvrement et la visée sont deux chiffres.** Le pire
+    Jaccard bâti mesuré est **0,60**, et il est structurel — un noyau de trois
+    familles partagé plus une exclusive chacune donne 3/5. Le plafond garde donc
+    contre la **régression** (0,65) ; la **visée du dossier, 0,50**, reste écrite
+    pour le lot qui cassera les noyaux. Ce qui est refusé sans condition est
+    l'**identité** : deux régions au jeu de familles strictement égal.
+  - **Les neuf dernières étaient les régions d'ORIGINE de chaque thème** — celles
+    que sept lots de contenu avaient laissées intactes. Trois paires bâtissaient
+    avec un jeu strictement égal. **Neuf familles neuves, zéro silhouette
+    neuve** : `caisson` en porte cinq, `cadre` deux, `masse_molle` deux.
   - **Une région neuve se déclare dans SIX tables, et aucune tranche n'est
     livrable** : `BLOCS` + `OBSTACLES` + `TRAMES` (`biomes.js`), `BLOC`
     (`blocs.js`), `QUARTIER` + `AIR` (`props.js`), `SOL_REGION`
@@ -666,6 +677,21 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     **par clef de région**, jamais par rang (voir `RENDU.md`) : une insertion au
     milieu d'`OBSTACLES` faisait sinon hériter six régions sur neuf du sol et des
     props d'une autre, sans qu'aucune table cesse d'être complète.
+  - **UNE RÉGION SATURÉE PREND SA SIGNATURE EN REMPLAÇANT, PAS EN AJOUTANT.**
+    `signatureBiome` construit une arène d'**une seule cellule** : la région
+    d'origine **est** la signature de son thème. Deux poses ajoutées à la coulée
+    ont fait tomber la séparation fonderie/secteur de **41,7 %** à **28,6 %**
+    (seuil 40) ; deux cuves **devenues** convertisseurs, à géométrie identique,
+    ne touchent aucun des quatre axes. Et la Fonderie n'avait pas la place non
+    plus : à **9,8 %** de bâti pour un plafond de **10 %**, deux masses de 1,5 %
+    de cellule passaient le budget et **tout ce qui suivait tombait**.
+  - **Trois contraintes de position, dont aucune ne se voit dans la table.**
+    Les **dangers ne sont pas miroités alors que les poses le sont**, donc les
+    **quatre** images doivent être libres, **aux deux modes**. Le **tremblement**
+    est annulé s'il pose un bloc sur un danger, mais **pas** contre un bord :
+    un talus à 103 px du bord de l'arène laissait une fente aveugle de **64 px**,
+    soit 103 moins les 40 px de tremblement de la Friche. Et la garde de 80 px
+    vaut aussi **entre deux blocs de la même région**.
   - **Le danger commande la table, pas l'inverse.** Trois familles neuves sur
     quatre tombaient sur un danger **en cauchemar** (41 travées, 46 piles,
     37 quais sur cinq graines) : ce mode porte cinq dangers dont une braise qui

@@ -10180,6 +10180,33 @@
                   parcourt donc le PERIMETRE de sa boite avec un retrait.
                   Vingt-deux regions sur trente et une ont une signature.
 
+    0.43.20 lot 21 LES NEUF REGIONS D ORIGINE N AVAIENT AUCUN OBJET A ELLES.
+                  Neuf regions sur trente et une n employaient que des familles
+                  partagees, et ce sont exactement les regions D ORIGINE de
+                  chaque theme — celles que sept lots de contenu avaient laissees
+                  intactes. Trois paires batissaient meme avec un jeu de familles
+                  STRICTEMENT EGAL. NEUF FAMILLES NEUVES, ZERO SILHOUETTE NEUVE :
+                  `caisson` en porte cinq, `cadre` deux, `masse_molle` deux.
+                  Trente et une regions sur trente et une ont maintenant une
+                  famille a elles, et `verifierSignature()` le tient — plancher
+                  ZERO, et il est arithmetique : chaque theme porte plus de
+                  familles que de regions. Le plafond de recouvrement (0,65)
+                  garde contre la REGRESSION, la visee du dossier (0,50) reste
+                  ecrite : le pire mesure est 0,60 et il est structurel.
+                  UNE REGION SATUREE PREND SA SIGNATURE EN REMPLACANT, PAS EN
+                  AJOUTANT. `signatureBiome` construit une arene d UNE cellule,
+                  donc la region d origine EST la signature de son theme : deux
+                  poses ajoutees a la coulee ont fait tomber la separation
+                  fonderie/secteur de 41,7 % a 28,6 % pour un seuil de 40. Deux
+                  cuves DEVENUES convertisseurs, a geometrie identique, ne
+                  touchent aucun des quatre axes.
+                  Et trois contraintes de position qui ne se voient pas dans la
+                  table : les dangers ne sont PAS miroites alors que les poses le
+                  sont, le tremblement mange la garde contre un BORD mais pas
+                  contre un danger (un talus a 103 px du bord laissait une fente
+                  de 64 px), et la garde de 80 px vaut aussi entre deux blocs de
+                  la meme region.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10188,4 +10215,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.19";
+export const VERSION = "0.43.20";

@@ -10,7 +10,9 @@ import {
   B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE,
   B_LAMINOIR, B_MEMBRURE, B_BORDE, B_ALVEOLE, B_COURSIVE,
   B_BAC, B_HOTTE, B_CAGE, B_PORTIQUE,
-  B_TAS, B_BOSQUET, B_RONCE, gabaritsDe,
+  B_TAS, B_BOSQUET, B_RONCE,
+  B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE,
+  B_ROCHE, B_SAS, B_ABRIBUS, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -91,6 +93,7 @@ const HABILLAGE = {
   laminoir, membrure, borde, alveole, coursive,
   bac, hotte, cage, portique,
   tas, bosquet, ronce,
+  tunnel, tournante, convertisseur, talus, portail, dalle, roche, sas, abribus,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -121,6 +124,8 @@ const BLOC = {
     // qui disent lequel.
     [B_TRANSFO]: { sil: "fut", hab: "transfo" },
     [B_CLOTURE]: { sil: "cadre", hab: "cloture" },
+    [B_TUNNEL]: { sil: "caisson", hab: "tunnel" },
+    [B_TOURNANTE]: { sil: "caisson", hab: "tournante" },
   },
   fonderie: {
     [B_FOUR]: { sil: "octogone", hab: "four" },
@@ -137,6 +142,7 @@ const BLOC = {
     [B_FOSSE]: { sil: "nappe", hab: "fosse", creux: true },
     [B_LAMINOIR]: { sil: "caisson", hab: "laminoir" },
     [B_TAS]: { sil: "masse_molle", hab: "tas" },
+    [B_CONVERTISSEUR]: { sil: "caisson", hab: "convertisseur" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -156,6 +162,11 @@ const BLOC = {
        une silhouette de ruine sur un panneau de coffrage faisait buter sur du
        vide en plus de mentir. */
     [B_BANCHE]: { sil: "caisson", hab: "banche" },
+    // LA TROISIEME MASSE MOLLE, et la seule qui ne soit ni un tas ni un
+    // bosquet : de la terre poussee la, avec ce qui a repris dessus.
+    [B_TALUS]: { sil: "masse_molle", hab: "talus" },
+    [B_PORTAIL]: { sil: "cadre", hab: "portail" },
+    [B_DALLE]: { sil: "caisson", hab: "dalle" },
   },
   nebuleuse: {
     [B_FRAGMENT]: { sil: "eclat", hab: "fragment" },
@@ -169,6 +180,8 @@ const BLOC = {
     // casse, et maintenant une ossature. Sa regle tient — il est habille.
     [B_MEMBRURE]: { sil: "cadre", hab: "membrure" },
     [B_BORDE]: { sil: "caisson", hab: "borde" },
+    [B_ROCHE]: { sil: "masse_molle", hab: "roche" },
+    [B_SAS]: { sil: "caisson", hab: "sas" },
   },
   secteur: {
     [B_DEVANTURE]: { sil: "devanture", hab: "devanture" },
@@ -180,6 +193,7 @@ const BLOC = {
     [B_ETAL]: { sil: "conteneur", hab: "etal" },
     [B_ALVEOLE]: { sil: "mur_bas", hab: "alveole" },
     [B_COURSIVE]: { sil: "barre", hab: "coursive" },
+    [B_ABRIBUS]: { sil: "cadre", hab: "abribus" },
   },
 };
 
@@ -462,7 +476,7 @@ function formeNappe(g, o) {
    ON PARCOURT DONC LE PERIMETRE et on RENTRE chaque point d au plus
    `MOLLE_CREUX` : le bord reste irregulier et sans angle — c est tout ce qui
    compte — et la boite reste pleine a 93 %. */
-const MOLLE_N = 28, MOLLE_CREUX = 0.04;
+const MOLLE_N = 28, MOLLE_CREUX = 0.03;
 function formeMasseMolle(g, o) {
   const w = o.w, h = o.h;
   const s = graine(o);
@@ -2681,6 +2695,284 @@ function bras(o, S) {
    lisse, quasi sans detail, avec une seule ligne de HUBLOTS qui donne l echelle.
    Ce qui la fait lire n est pas son dessin, c est son GABARIT : rien d autre
    n occupe autant d ecran d un seul tenant. */
+
+/* LE TUNNEL DE CUISSON — DEUX BOUCHES ET UN CAPOT. Ce qui le fait lire est que
+   ses deux extremites sont OUVERTES et sombres, le reste ferme : on comprend
+   qu une piece y entre et en ressort sans qu il faille dessiner la piece. */
+function tunnel(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h, L = long ? w : h, E = long ? h : w;
+  ctx.fillStyle = alpha("#000000", 0.42);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.66);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // LES DEUX BOUCHES, noires, aux extremites de l axe long.
+  ctx.fillStyle = alpha("#000000", 0.72);
+  for (const u of [-1, 1]) {
+    if (long) ctx.fillRect(u > 0 ? w / 2 - 7 : -w / 2 + 3, -h / 2 + 6, 4, h - 12);
+    else ctx.fillRect(-w / 2 + 6, u > 0 ? h / 2 - 7 : -h / 2 + 3, w - 12, 4);
+  }
+  // les cerces du capot : des anneaux reguliers, c est ce qui donne la longueur.
+  ctx.strokeStyle = alpha("#000000", 0.26);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let u = -L / 2 + 16; u < L / 2 - 10; u += 18) {
+    if (long) { ctx.moveTo(u, -h / 2 + 4); ctx.lineTo(u, h / 2 - 4); }
+    else { ctx.moveTo(-w / 2 + 4, u); ctx.lineTo(w / 2 - 4, u); }
+  }
+  ctx.stroke();
+  // la bande chaude qui fuit sous le capot, du cote de l ombre.
+  ctx.fillStyle = alpha(S.emis, 0.10 + (s & 3) * 0.02);
+  if (long) ctx.fillRect(-w / 2 + 6, h * 0.30, w - 12, Math.max(2, E * 0.06));
+  else ctx.fillRect(w * 0.30, -h / 2 + 6, Math.max(2, E * 0.06), h - 12);
+}
+
+/* LA TABLE TOURNANTE — UN DISQUE DANS UN CARRE, ET DEUX RAILS QUI S Y CROISENT.
+   Le disque ne tourne pas : un mouvement continu appartient a la matiere, et
+   c est le CROISEMENT des rails qui dit la fonction, pas une animation. */
+function tournante(o, S) {
+  const w = o.w, h = o.h;
+  const r = Math.min(w, h) * 0.40;
+  ctx.fillStyle = alpha("#000000", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.bloc, 0.58);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  ctx.strokeStyle = alpha("#000000", 0.34);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(PROP.metal, 0.22);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, -h / 2 + 4); ctx.lineTo(0, h / 2 - 4);
+  ctx.moveTo(-w / 2 + 4, 0); ctx.lineTo(w / 2 - 4, 0);
+  ctx.stroke();
+  // le pivot, et les quatre cales qui bloquent le plateau hors rotation.
+  ctx.fillStyle = alpha("#000000", 0.50);
+  ctx.beginPath(); ctx.arc(0, 0, Math.max(2, r * 0.16), 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(S.emis, 0.16);
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    ctx.fillRect(dx * r * 0.72 - 2, dy * r * 0.72 - 2, 4, 4);
+  }
+}
+
+/* LE CONVERTISSEUR — UNE PANSE ET DEUX TOURILLONS. Le four est un octogone
+   ferme, la cuve un cylindre ; celui-ci a un COL, decentre, et c est de ce cote
+   qu il verse. Le seul objet du theme dont on lise l orientation. */
+function convertisseur(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.46);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  g.addColorStop(0, alpha(S.bloc, 0.70));
+  g.addColorStop(0.62, alpha(S.bloc, 0.52));
+  g.addColorStop(1, alpha("#000000", 0.40));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  // LES DEUX TOURILLONS, sur l axe court : c est autour d eux qu il bascule.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.62);
+  ctx.fillRect(-w / 2 - 2, -h * 0.06, 6, h * 0.12);
+  ctx.fillRect(w / 2 - 4, -h * 0.06, 6, h * 0.12);
+  // LE COL, decentre, et le seul endroit chaud de la piece.
+  const d = (s & 1) ? -1 : 1;
+  ctx.fillStyle = alpha("#000000", 0.54);
+  ctx.fillRect(-w * 0.16, -h / 2 + 2 + (d > 0 ? 0 : h - 10), w * 0.32, 8);
+  ctx.fillStyle = alpha(S.emis, 0.30);
+  ctx.fillRect(-w * 0.12, -h / 2 + 4 + (d > 0 ? 0 : h - 10), w * 0.24, 4);
+  // les cerclages de la panse.
+  ctx.strokeStyle = alpha("#000000", 0.22);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (const u of [-0.22, 0.10, 0.34]) {
+    ctx.moveTo(-w / 2 + 4, h * u); ctx.lineTo(w / 2 - 4, h * u);
+  }
+  ctx.stroke();
+}
+
+/* LE TALUS — DE LA TERRE, DONC UN DEGRADE ET PAS UN CONTOUR. Il n a ni arete ni
+   liseré franc : la clarte tombe du haut vers le pied, et ce qui a repris
+   dessus est pose par touffes le long de la crete. */
+function talus(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+  g.addColorStop(0, alpha("#6a5a42", 0.60));
+  g.addColorStop(0.55, alpha("#4a3d2c", 0.62));
+  g.addColorStop(1, alpha("#221c14", 0.58));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // le GRAIN de terre, plus dense au pied.
+  for (let i = 0; i < 70; i++) {
+    const x = -w / 2 + ((s * (i + 7)) % 991) / 991 * w;
+    const t = ((s * (i + 19)) % 983) / 983;
+    ctx.fillStyle = alpha(i & 1 ? "#000000" : "#8a7658", 0.08 + t * 0.10);
+    ctx.fillRect(x, -h / 2 + t * h, 1.8, 1.8);
+  }
+  // LES TOUFFES sur la crete : c est ce qui dit que rien ne l a touche depuis.
+  ctx.fillStyle = alpha(PROP.vert, 0.22);
+  for (let i = 0; i < 9; i++) {
+    const x = -w / 2 + (i + 0.5) * (w / 9) + (((s >> i) & 3) - 1.5) * 3;
+    ctx.beginPath();
+    ctx.arc(x, -h * 0.26 + (((s >> (i + 3)) & 3) / 3) * h * 0.14, 3 + ((s >> i) & 1) * 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* LE PORTAIL — DEUX PILIERS ET DES BARREAUX, ET ON VOIT A TRAVERS. Il est
+   habille parce que le cadre l exige : une silhouette qui laisse passer le
+   regard doit dire de quoi elle est faite, sinon elle n est qu un trou. */
+function portail(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.30);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LES DEUX PILIERS, pleins : ce sont eux qui tiennent encore.
+  ctx.fillStyle = alpha(PROP.brique, 0.62);
+  ctx.fillRect(-w / 2, -h / 2, w * 0.22, h);
+  ctx.fillRect(w / 2 - w * 0.22, -h / 2, w * 0.22, h);
+  // les barreaux, et l un d eux est TORDU — sinon le portail est neuf.
+  ctx.strokeStyle = alpha(PROP.rouille, 0.50);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const x = -w * 0.22 + (i + 0.5) * (w * 0.44 / n);
+    const t = ((s >> i) & 3) === 0 ? 4 : 0;
+    ctx.moveTo(x, -h / 2 + 3); ctx.lineTo(x + t, h / 2 - 3);
+  }
+  ctx.stroke();
+  // la traverse haute, seule : la basse est partie avec le mur.
+  ctx.strokeStyle = alpha(PROP.rouille, 0.40);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 2, -h * 0.30); ctx.lineTo(w / 2 - 2, -h * 0.30);
+  ctx.stroke();
+}
+
+/* LA DALLE LEVEE — DU BETON VU PAR LA TRANCHE, ET DES FERS QUI SORTENT. Sa
+   matiere est celle du sol parce que c EST le sol : c est le seul objet du depot
+   qui reprenne la couleur d arene au lieu de celle du bati. */
+function dalle(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#000000", 0.44);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha(S.arena, 0.86);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  // la TRANCHE, plus claire : la cassure est fraiche du cote leve.
+  ctx.fillStyle = alpha("#9a9186", 0.20);
+  ctx.fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, Math.max(3, h * 0.14));
+  // LES FERS A BETON, tordus, au-dessus de l arete.
+  ctx.strokeStyle = alpha(PROP.rouille, 0.54);
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const x = -w / 2 + (i + 0.8) * (w / 5);
+    const d = ((s >> (i * 2)) & 3) - 1.5;
+    ctx.moveTo(x, -h / 2 + 3);
+    ctx.lineTo(x + d * 3, -h / 2 - 5 - ((s >> i) & 3));
+  }
+  ctx.stroke();
+  // les fissures de la face, courtes et sans direction commune.
+  ctx.strokeStyle = alpha("#000000", 0.24);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const x = -w / 2 + ((s * (i + 11)) % 977) / 977 * w;
+    const y = -h / 2 + ((s * (i + 5)) % 971) / 971 * h;
+    ctx.moveTo(x, y); ctx.lineTo(x + 4 - ((s >> i) & 7), y + 5);
+  }
+  ctx.stroke();
+}
+
+/* LA ROCHE — AUCUNE LIGNE DROITE, ET C EST TOUT SON PROPOS. Pas de couture, pas
+   de rivet, pas de hublot : elle se distingue de l epave par ce qu elle n a
+   pas. Des crateres, et une face eclairee par l astre. */
+function roche(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const g = ctx.createRadialGradient(-w * 0.18, -h * 0.20, 0, 0, 0, Math.max(w, h) * 0.62);
+  g.addColorStop(0, alpha("#6d6a66", 0.62));
+  g.addColorStop(0.6, alpha("#3c3a38", 0.62));
+  g.addColorStop(1, alpha("#17161a", 0.60));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LES CRATERES : un anneau clair au bord eclaire, un creux sombre dedans.
+  for (let i = 0; i < 7; i++) {
+    const a = ((s * (i + 3)) % 997) / 997 * Math.PI * 2;
+    const d = Math.sqrt(((s * (i + 13)) % 991) / 991) * 0.38;
+    const r = Math.min(w, h) * (0.05 + (((s >> i) & 3) / 3) * 0.07);
+    const cx = Math.cos(a) * w * d, cy = Math.sin(a) * h * d;
+    ctx.fillStyle = alpha("#000000", 0.24);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = alpha("#8d8a86", 0.16);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx - r * 0.12, cy - r * 0.12, r * 0.9, Math.PI * 0.9, Math.PI * 1.9); ctx.stroke();
+  }
+  // le GIVRE du cote froid : la seule chose qu elle partage avec les coques.
+  ctx.fillStyle = alpha(PROP.givre, 0.08 + (s & 3) * 0.02);
+  ctx.fillRect(-w / 2 + 2, h * 0.30, w - 4, Math.max(2, h * 0.10));
+}
+
+/* LE SAS — UNE TRAPPE RONDE, SES CONDAMNATIONS, ET UN VOYANT QUI TIENT. Tout ce
+   qui l entoure est creve ; lui est ferme, et ses quatre barres mises en croix
+   disent que quelqu un l a verrouille depuis l interieur. */
+function sas(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const r = Math.min(w, h) * 0.30;
+  ctx.fillStyle = alpha("#000000", 0.48);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = alpha("#c9ccd2", 0.30);
+  ctx.fillRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6);
+  ctx.fillStyle = alpha(S.bloc, 0.44);
+  ctx.fillRect(-w / 2 + 3, h * 0.10, w - 6, h / 2 - 3 - h * 0.10);
+  ctx.strokeStyle = alpha("#000000", 0.40);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(0, -h * 0.08, r, 0, Math.PI * 2); ctx.stroke();
+  // LES CONDAMNATIONS : quatre barres au travers de la trappe.
+  ctx.strokeStyle = alpha(PROP.metalDark, 0.56);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    ctx.moveTo(Math.cos(a) * r * 1.18, -h * 0.08 + Math.sin(a) * r * 1.18);
+    ctx.lineTo(Math.cos(a) * r * 0.30, -h * 0.08 + Math.sin(a) * r * 0.30);
+  }
+  ctx.stroke();
+  // les bandes de danger au seuil, et le voyant qui tient encore.
+  ctx.fillStyle = alpha("#000000", 0.30);
+  for (let i = 0; i < 5; i++) ctx.fillRect(-w / 2 + 5 + i * ((w - 10) / 5), h / 2 - 8, (w - 10) / 10, 5);
+  ctx.fillStyle = alpha(PROP.balise, 0.24 + (s & 1) * 0.08);
+  ctx.fillRect(-3, -h / 2 + 5, 6, 3);
+}
+
+/* L ABRIBUS — DU VERRE SUR TROIS COTES, UN TOIT, UN BANC. Il laisse voir ce qui
+   arrive derriere sans laisser tirer : c est la seule fois du depot ou la
+   claire-voie serve a du confort et non a de la securite. */
+function abribus(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const long = w >= h;
+  ctx.fillStyle = alpha("#000000", 0.26);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LE VITRAGE, et un panneau MANQUE : une rue habitee casse ses abribus.
+  const n = 4, casse = s % n;
+  ctx.fillStyle = alpha(PROP.verre, 0.16);
+  for (let i = 0; i < n; i++) {
+    if (i === casse) continue;
+    if (long) ctx.fillRect(-w / 2 + 3 + i * ((w - 6) / n), -h / 2 + 3, (w - 6) / n - 2, h - 6);
+    else ctx.fillRect(-w / 2 + 3, -h / 2 + 3 + i * ((h - 6) / n), w - 6, (h - 6) / n - 2);
+  }
+  // LE TOIT : une arete franche du cote de la chaussee, c est ce qui l ancre.
+  ctx.strokeStyle = alpha(PROP.metal, 0.40);
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  if (long) { ctx.moveTo(-w / 2 + 1, -h / 2 + 1); ctx.lineTo(w / 2 - 1, -h / 2 + 1); }
+  else { ctx.moveTo(-w / 2 + 1, -h / 2 + 1); ctx.lineTo(-w / 2 + 1, h / 2 - 1); }
+  ctx.stroke();
+  // le BANC, et l affiche retro-eclairee du fond.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.44);
+  if (long) ctx.fillRect(-w / 2 + 5, h * 0.18, w - 10, Math.max(2, h * 0.16));
+  else ctx.fillRect(w * 0.18, -h / 2 + 5, Math.max(2, w * 0.16), h - 10);
+  ctx.fillStyle = alpha(S.emis, 0.20);
+  if (long) ctx.fillRect(w / 2 - 8, -h / 2 + 5, 4, h - 10);
+  else ctx.fillRect(-w / 2 + 5, h / 2 - 8, w - 10, 4);
+}
+
 function coque(o, S) {
   const w = o.w, h = o.h, s = graine(o);
   ctx.fillStyle = alpha("#000000", 0.46);

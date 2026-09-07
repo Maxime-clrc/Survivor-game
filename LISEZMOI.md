@@ -8,6 +8,77 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Les neuf régions d'origine n'avaient aucun objet à elles (0.43.20)
+
+**Neuf régions sur trente et une n'employaient que des familles partagées**, et
+ce sont exactement les régions **d'origine** de chaque thème — celles que sept
+lots de contenu avaient laissées intactes. Trois paires bâtissaient même avec un
+jeu de familles **strictement égal** :
+
+| paire | familles communes |
+|---|---|
+| usine chaîne / carrefour | chaîne, poste, machine |
+| friche champ / mur / effondrement | mur, ruine, carcasse |
+| nébuleuse dérive / brèche | fragment, travée, débris |
+
+**Neuf familles neuves, zéro silhouette neuve** : `caisson` en porte cinq
+(tunnel, tournante, convertisseur, dalle levée, sas), `cadre` deux (portail,
+abribus), `masse_molle` deux (talus, roche). C'est le critère du §16 — une
+silhouette sert plusieurs thèmes ou elle ne s'écrit pas.
+
+**Trente et une régions sur trente et une ont maintenant une famille à elles**
+(22 avant ce lot, **0 sur 20** à l'ouverture du plan), et `verifierSignature()`
+le tient : plancher **zéro**, et il est arithmétique — chaque thème porte plus de
+familles que de régions (16 pour 9 à l'Usine), donc une exclusive par région est
+toujours atteignable.
+
+---
+
+**Une position de bloc obéit à trois contraintes dont aucune ne se voit dans la
+table.** Elles ont coûté trois passes ; le solveur qui les applique vit dans les
+scripts de mesure, pas dans le dépôt.
+
+1. **Les dangers ne sont pas miroités, les poses le sont.** Une position n'est
+   libre que si ses **quatre** images le sont, **aux deux modes** : le premier
+   jet posait 132 talus sur une flaque de cauchemar.
+2. **Le tremblement mange la garde contre un bord, et pas contre un danger.** Un
+   décalage qui poserait un bloc sur un danger est **annulé** — donc c'est la
+   position de table qui doit être libre. Contre un bord, il s'applique : un
+   talus à **103 px** du bord de l'arène laissait une fente aveugle de **64 px**,
+   soit 103 moins les 40 px de tremblement de la Friche.
+3. **La garde de 80 px vaut aussi entre deux blocs de la même région**, et c'est
+   ce qui a réduit la Friche à 16 positions libres pour un talus de 208 × 81.
+
+**UNE RÉGION SATURÉE PREND SA SIGNATURE EN REMPLAÇANT, PAS EN AJOUTANT** — et
+c'est le piège le plus cher du lot. `signatureBiome` construit une arène d'**une
+seule cellule** : la région d'origine **est** la signature de son thème.
+
+| | fonderie / secteur, meilleur axe |
+|---|---|
+| avant | **densité 41,7 %** (7 poses contre 12) |
+| deux convertisseurs ajoutés à la coulée | densité 28,6 %, encombrement 38 % — **rouge** (seuil 40) |
+| deux cuves **devenues** convertisseurs, géométrie identique | **densité 41,7 %** |
+
+Et la Fonderie n'avait pas la place non plus : elle est à **9,8 %** de bâti pour
+un plafond de **10 %**, donc deux convertisseurs de 0,100 × 0,150 (1,5 % de
+cellule chacun) passaient le budget et **tout ce qui suivait tombait** —
+`cauchemar n'a pas plus d'obstacles que normal (7 → 7)`.
+
+**Trois autres mesures du lot :**
+
+- **`MOLLE_CREUX` 0,04 → 0,03.** Le retrait ne dépend pas de la boîte, donc plus
+  elle est plate, plus il en mange : le talus (176 × 68) et la roche (144 × 90)
+  sortaient à **10,2 %** et **10,1 %** d'empreinte vide pour un seuil de 10.
+- **Le petit poste du carrefour devient une petite tournante.** Il tenait le
+  contraste de la variante — sans lui, deux gabarits et un rapport max/min de 1,2
+  contre 2,5 ailleurs — mais il donnait au carrefour **exactement** les trois
+  familles de la chaîne. Même rôle, famille de la région : 60 % → **40 %**.
+- **Le pire recouvrement bâti reste 60 %**, sur plusieurs paires, et c'est
+  structurel : un noyau de trois familles partagé plus une exclusive chacune
+  donne 3/5. Le plafond du vérificateur est donc à **0,65** (garde contre la
+  régression) et la **visée du dossier à 0,50** reste écrite — y descendre
+  demande de casser les noyaux des cinq thèmes, donc un lot de contenu de plus.
+
 ### Une table par région se lit par CLEF, jamais par rang (0.43.19)
 
 **Le défaut le plus silencieux du plan, et il était déjà livré.** `AIR`

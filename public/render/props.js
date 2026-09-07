@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, loiCle, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, loiCle, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -228,7 +228,10 @@ const QUARTIER = {
            // et c est la seule chose qui travaille encore ici.
            // le bac et la hotte TRAITENT — ils ne sont poses que la, et c est
            // leur quartier qui les entoure, pas celui de l entretien.
-           [B_BAC]: 6, [B_HOTTE]: 6, [B_CAGE]: 0, [B_PORTIQUE]: 0 },
+           [B_BAC]: 6, [B_HOTTE]: 6, [B_CAGE]: 0, [B_PORTIQUE]: 0,
+           // le tunnel PRODUIT — c est la chaine qui le traverse ; la table
+           // tournante fait CIRCULER, c est sa seule raison d etre.
+           [B_TUNNEL]: 0, [B_TOURNANTE]: 2 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
   // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.
@@ -237,7 +240,9 @@ const QUARTIER = {
               // le laminoir COULE encore : c est du metal en mouvement.
               [B_LAMINOIR]: 0,
               // le minerai n est pas encore fondu : c est du STOCK, pas du feu.
-              [B_TAS]: 2 },
+              [B_TAS]: 2,
+              // le convertisseur VERSE : le quartier de la coulee.
+              [B_CONVERTISSEUR]: 0 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
@@ -245,7 +250,10 @@ const QUARTIER = {
   friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3,
             [B_EPAVES]: 1, [B_GRILLAGE]: 2, [B_POTEAU]: 2, [B_BANCHE]: 2,
             // ce qui pousse est ce qui a REPRIS : le quartier de la vegetation.
-            [B_BOSQUET]: 0, [B_RONCE]: 0 },
+            [B_BOSQUET]: 0, [B_RONCE]: 0,
+            // le talus est ce qui REPOUSSE, le portail ce qui FERMAIT, et la
+            // dalle levee ce qui a ete CASSE.
+            [B_TALUS]: 0, [B_PORTAIL]: 2, [B_DALLE]: 1 },
   // la coque et ses debris font l EPAVE, la travee est ce a quoi on s AMARRE.
   // la coque et ses debris font l EPAVE ; le bras, la cloison et la console
   // sont ce a quoi on s AMARRE ou ce qui dessert — le quartier de la travee.
@@ -253,14 +261,21 @@ const QUARTIER = {
                [B_BRAS]: 3, [B_CLOISON]: 3, [B_CONSOLE]: 3,
                // une ossature est ce a quoi on s AMARRE tant qu elle n est pas
                // fermee ; le borde, lui, appartient deja a la coque.
-               [B_MEMBRURE]: 3, [B_BORDE]: 0 },
+               [B_MEMBRURE]: 3, [B_BORDE]: 0,
+               // une roche n a jamais ete un vaisseau, mais ce qui derive
+               // autour d elle est le meme : le quartier de l epave. Le sas est
+               // ce a quoi on s AMARRE — c est par la qu on entre.
+               [B_ROCHE]: 0, [B_SAS]: 3 },
   // devanture et pylone VENDENT, le conteneur est ce qu on livre PAR DERRIERE.
   // le monolithe et l etal VENDENT (ou impressionnent) ; le mur aveugle et
   // l escalier sont l arriere, la ou l on livre — le quartier du conteneur.
   secteur: { [B_DEVANTURE]: 0, [B_PYLONE]: 0, [B_CONTENEUR]: 2,
              [B_MONOLITHE]: 0, [B_ETAL]: 0, [B_AVEUGLE]: 2, [B_ESCALIER]: 2,
              // on HABITE les alveoles : c est l arriere, pas la vitrine.
-             [B_ALVEOLE]: 2, [B_COURSIVE]: 2 },
+             [B_ALVEOLE]: 2, [B_COURSIVE]: 2,
+             // on attend l abribus DEVANT, sur le trottoir : le quartier de la
+             // vitrine, pas celui des livraisons.
+             [B_ABRIBUS]: 0 },
 };
 
 /* LES DEUX TABLES DOIVENT SE RECOUVRIR EXACTEMENT, DANS LES DEUX SENS. Un prop

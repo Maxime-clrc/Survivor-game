@@ -150,7 +150,10 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_MEMBRURE = 41, B_BORDE = 42,
              B_ALVEOLE = 43, B_COURSIVE = 44,
              B_BAC = 45, B_HOTTE = 46, B_CAGE = 47, B_PORTIQUE = 48,
-             B_TAS = 49, B_BOSQUET = 50, B_RONCE = 51;
+             B_TAS = 49, B_BOSQUET = 50, B_RONCE = 51,
+             B_TUNNEL = 52, B_TOURNANTE = 53, B_CONVERTISSEUR = 54,
+             B_TALUS = 55, B_PORTAIL = 56, B_DALLE = 57,
+             B_ROCHE = 58, B_SAS = 59, B_ABRIBUS = 60;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -209,6 +212,20 @@ export const BLOCS = [
   { key: "tas", lieu: "fonderie" },
   { key: "bosquet", lieu: "friche" },
   { key: "ronce", lieu: "friche" },
+  /* NEUF FAMILLES POUR LES NEUF REGIONS QUI N EN AVAIENT AUCUNE A ELLES. Ce
+     sont exactement les regions d ORIGINE de chaque theme : elles employaient
+     les trois memes familles historiques, donc trois paires du depot etaient a
+     un Jaccard de 1,00 sur le bati. Aucune silhouette neuve — caisson, cadre et
+     masse molle portent les neuf. */
+  { key: "tunnel", lieu: "usine" },
+  { key: "tournante", lieu: "usine" },
+  { key: "convertisseur", lieu: "fonderie" },
+  { key: "talus", lieu: "friche" },
+  { key: "portail", lieu: "friche" },
+  { key: "dalle", lieu: "friche" },
+  { key: "roche", lieu: "nebuleuse" },
+  { key: "sas", lieu: "nebuleuse" },
+  { key: "abribus", lieu: "secteur" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -382,6 +399,12 @@ const OBSTACLES = {
       { x: 0.50, y: 0.90, w: 0.070, h: 0.048, kind: B_POSTE },
       { x: 0.14, y: 0.74, w: 0.048, h: 0.090, kind: B_POSTE, min: 2 },
       { x: 0.86, y: 0.24, w: 0.052, h: 0.130, kind: B_MACHINE, min: 2 },
+      /* LE TUNNEL DE CUISSON — CE QUE LA CHAINE TRAVERSE. Une chaine sans lui
+         n est qu une bande : le tunnel est la seule masse du theme qu un objet
+         ENTRE d un cote et SORTE de l autre, et c est ce qui dit qu il se passe
+         quelque chose ici plutot qu ailleurs. */
+      { x: 0.52, y: 0.16, w: 0.150, h: 0.060, kind: B_TUNNEL },
+      { x: 0.32, y: 0.86, w: 0.150, h: 0.060, kind: B_TUNNEL, min: 1 },
     ] },
     /* LE CARREFOUR — deux allees larges qui se croisent, quatre ilots. La loi
        est l AXE : tout est pousse hors des deux bandes centrales, et ce qui
@@ -397,10 +420,19 @@ const OBSTACLES = {
          c est exactement l abri parfait que le depot a deja paye une fois. */
       { x: 0.50, y: 0.12, w: 0.230, h: 0.036, kind: B_CHAINE },
       { x: 0.50, y: 0.88, w: 0.230, h: 0.036, kind: B_CHAINE, min: 1 },
-      // LE PETIT POSTE TIENT LE CONTRASTE DU THEME. Sans lui la variante n a que
-      // deux formats, donc un rapport max/min de 1,2 contre 2,5 ailleurs : elle
-      // sortait du lieu par le bas au lieu d en etre une variante.
-      { x: 0.50, y: 0.18, w: 0.070, h: 0.048, kind: B_POSTE },
+      /* LA PETITE TOURNANTE TIENT LE CONTRASTE, ET ELLE A REMPLACE UN POSTE.
+         Le petit format est necessaire — sans lui la variante n a que deux
+         gabarits, donc un rapport max/min de 1,2 contre 2,5 ailleurs. Mais un
+         POSTE ici donnait au carrefour exactement les trois familles de la
+         chaine : 60 % de Jaccard sur le bati, pour un plafond de 50. Le meme
+         role, la famille de la region, et le recouvrement tombe a 40 %. */
+      { x: 0.50, y: 0.18, w: 0.070, h: 0.048, kind: B_TOURNANTE },
+      /* LA TABLE TOURNANTE — CE QUI FAIT D UN CROISEMENT UN CARREFOUR. Elle est
+         DANS UN ILOT et jamais sur la croisee : la loi de la region est que les
+         deux bandes centrales restent franches, et une masse au milieu la
+         detruirait au lieu de la dire. */
+      { x: 0.36, y: 0.36, w: 0.080, h: 0.120, kind: B_TOURNANTE },
+      { x: 0.64, y: 0.64, w: 0.080, h: 0.120, kind: B_TOURNANTE, min: 1 },
     ] },
     /* LA MAINTENANCE — ON REPARE, DONC RIEN N EST FINI. Elle remplace
        « l atelier », dont le nom promettait des etablis et qui posait des
@@ -559,9 +591,14 @@ const OBSTACLES = {
       { x: 0.70, y: 0.70, w: 0.120, h: 0.190, kind: B_FOUR },
       { x: 0.50, y: 0.12, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 1 },
       { x: 0.12, y: 0.78, w: 0.070, h: 0.070, kind: B_CUVE },
-      { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
-      { x: 0.08, y: 0.30, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+      // deux des trois cuves DEVIENNENT des convertisseurs, a la case pres :
+      // c est le meme recipient, et seul celui qui BASCULE a des tourillons.
+      { x: 0.88, y: 0.22, w: 0.070, h: 0.070, kind: B_CONVERTISSEUR, min: 1 },
+      { x: 0.08, y: 0.30, w: 0.070, h: 0.070, kind: B_CONVERTISSEUR, min: 2 },
       { x: 0.50, y: 0.88, w: 0.260, h: 0.048, kind: B_CONDUITE, min: 2 },
+      /* LE CONVERTISSEUR — L AMONT DU FOUR, ET IL BASCULE. Le four chauffe, la
+         cuve contient ; celui-ci VERSE, et ses deux tourillons disent de quel
+         cote. C est le seul objet du theme dont on lise l ORIENTATION. */
     ] },
     /* LA SABLERIE — LA SEULE REGION DU DEPOT QUI SOIT PLATE. Elle remplace
        « les cuves », qui n etaient que des octogones moyens sans axe : deux
@@ -696,6 +733,12 @@ const OBSTACLES = {
       { x: 0.30, y: 0.62, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 1 },
       { x: 0.06, y: 0.46, w: 0.052, h: 0.086, kind: B_RUINE, min: 2 },
       { x: 0.94, y: 0.54, w: 0.052, h: 0.086, kind: B_RUINE, min: 2 },
+      /* LE TALUS — CE QUE PERSONNE N A CONSTRUIT. Toutes les autres masses du
+         theme sont des restes de bati ; celle-ci est de la TERRE poussee la et
+         laissee, avec ce qui a repris dessus. Meme bord organique que le
+         bosquet du terrain repris, une autre matiere. */
+      { x: 0.28, y: 0.80, w: 0.100, h: 0.070, kind: B_TALUS },
+      { x: 0.64, y: 0.54, w: 0.100, h: 0.070, kind: B_TALUS, min: 1 },
     ] },
     /* LE MUR — une longue ruine avec PLUSIEURS breches larges. Une seule breche
        ferait un goulot, et un goulot detruit le kiting : la horde s y accumule,
@@ -715,6 +758,14 @@ const OBSTACLES = {
       { x: 0.28, y: 0.84, w: 0.045, h: 0.110, kind: B_RUINE, min: 1 },
       { x: 0.29, y: 0.59, w: 0.082, h: 0.048, hp: 1, kind: B_CARCASSE },
       { x: 0.72, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 2 },
+      /* LE PORTAIL — CE QUI RESTE DEBOUT QUAND LE MUR EST TOMBE. Il se pose DANS
+         la plus large breche : un cadre qu on voit a travers, au milieu de
+         l ouverture, et il laisse 160 px de chaque cote — deux fois
+         `PASSAGE_MIN`. Un portail qui fermerait ferait un goulot, et un goulot
+         detruit le kiting ; celui-ci ne fait que NOMMER l ouverture. */
+      { x: 0.50, y: 0.50, w: 0.040, h: 0.075, kind: B_PORTAIL },
+      // le second n a meme plus son mur : c est le dernier etat de la region.
+      { x: 0.24, y: 0.26, w: 0.040, h: 0.075, kind: B_PORTAIL, min: 1 },
     ] },
     /* LA CASSE — ON DEMONTE POUR REVENDRE, DONC C EST UN ABANDON ORGANISE. Elle
        remplace « le cratere », dont le nom decrivait une disposition et
@@ -809,6 +860,12 @@ const OBSTACLES = {
       { x: 0.28, y: 0.36, w: 0.062, h: 0.066, hp: 1, kind: B_CARCASSE, min: 1 },
       { x: 0.83, y: 0.50, w: 0.040, h: 0.098, hp: 1, kind: B_CARCASSE, min: 2 },
       { x: 0.33, y: 0.50, w: 0.110, h: 0.040, kind: B_MUR, min: 2 },
+      /* LA DALLE LEVEE — LE SOL LUI-MEME, MIS DEBOUT. Une region d effondrement
+         posait des morceaux de MURS ; ce qui manquait est ce sur quoi on
+         marchait. Ses fers a beton sortent du bord haut, et c est le seul objet
+         du depot dont la matiere soit la meme que celle du sol. */
+      { x: 0.24, y: 0.18, w: 0.055, h: 0.080, kind: B_DALLE },
+      { x: 0.56, y: 0.48, w: 0.055, h: 0.080, kind: B_DALLE, min: 1 },
     ] },
   ],
   nebuleuse: [
@@ -825,6 +882,12 @@ const OBSTACLES = {
       // central — et le joueur garde un moyen de rouvrir un passage au tir.
       { x: 0.37, y: 0.80, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
       { x: 0.50, y: 0.30, w: 0.036, h: 0.032, hp: 1, kind: B_DEBRIS, min: 2 },
+      /* LA ROCHE — LA SEULE CHOSE ICI QUI N AIT JAMAIS ETE UN VAISSEAU. Toute la
+         Nebuleuse est de l epave : de la tole, des travees, des eclats de coque.
+         Un caillou pris dans la derive n a pas d arete droite ni une seule
+         soudure, et c est ce qui le rend lisible d une vue entiere. */
+      { x: 0.60, y: 0.72, w: 0.110, h: 0.120, kind: B_ROCHE },
+      { x: 0.76, y: 0.22, w: 0.090, h: 0.100, kind: B_ROCHE, min: 1 },
     ] },
     /* LE DOCK — ON ACCOSTE, DONC IL Y A UN BORD ET DES PINCES DESSUS. Il
        remplace « le champ d epaves », qui n etait que la derive avec des eclats
@@ -912,6 +975,12 @@ const OBSTACLES = {
       // 0,44 -> 0,48 : deux debris a 0,40 et 0,44 se touchaient sur 3 px.
       { x: 0.48, y: 0.30, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
       { x: 0.44, y: 0.70, w: 0.042, h: 0.038, hp: 1, kind: B_DEBRIS, min: 2 },
+      /* LE SAS — LA SEULE PORTE FERMEE DU DEPOT, ET ELLE NE MENE NULLE PART. Une
+         breche est ce qui s est ouvert ; le sas est ce qui a tenu. Sa trappe est
+         verrouillee et ses barres de condamnation sont mises : on lit qu il est
+         encore sous pression alors que tout autour est creve. */
+      { x: 0.88, y: 0.22, w: 0.090, h: 0.130, kind: B_SAS },
+      { x: 0.68, y: 0.76, w: 0.090, h: 0.130, kind: B_SAS, min: 1 },
     ] },
   ],
   /* UNE RUE, PAS UNE SALLE. Les quatre autres lieux sont des interieurs ou du
@@ -933,10 +1002,17 @@ const OBSTACLES = {
       { x: 0.66, y: 0.50, w: 0.014, h: 0.230, kind: B_PYLONE },
       { x: 0.50, y: 0.14, w: 0.014, h: 0.150, kind: B_PYLONE, min: 2 },
       { x: 0.50, y: 0.86, w: 0.014, h: 0.150, kind: B_PYLONE, min: 2 },
-      { x: 0.26, y: 0.84, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
-      { x: 0.74, y: 0.16, w: 0.052, h: 0.046, hp: 1, kind: B_CONTENEUR },
+      // les deux GRANDS conteneurs deviennent des abribus : la rue garde ses
+      // deux destructibles, et sa densite ne bouge pas d une pose.
+      { x: 0.26, y: 0.84, w: 0.052, h: 0.046, kind: B_ABRIBUS },
+      { x: 0.74, y: 0.16, w: 0.052, h: 0.046, kind: B_ABRIBUS },
       { x: 0.44, y: 0.74, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 1 },
       { x: 0.56, y: 0.26, w: 0.046, h: 0.040, hp: 1, kind: B_CONTENEUR, min: 2 },
+      /* L ABRIBUS — LE SEUL MOBILIER DU DEPOT FAIT POUR QU ON S Y ARRETE. Tout
+         le reste de la rue est du commerce ou de l infrastructure. Il est en
+         verre sur trois cotes, donc on voit ce qui arrive derriere sans pouvoir
+         y tirer : le meme cadre que la claire-voie de l Usine, a hauteur de
+         trottoir. */
     ] },
     /* LA RUELLE — L ARRIERE, ET C EST LE DOS DE LA RUE. Elle remplace « la
        place », qui posait le meme catalogue de props que la rue dans un autre
@@ -2271,6 +2347,79 @@ export function signatureVariante(lieu, vi, diffIndex = 2) {
   };
 }
 
+
+/* UNE REGION DOIT POSSEDER UN OBJET, ET RIEN NE LE VERIFIAIT.
+
+   C EST LA PREMIERE MESURE DU PLAN 39, ET LA SEULE QUI DECRIVE LE BATI. Les
+   verificateurs existants croisent des tables (`verifierZones`), comparent des
+   arrangements (`verifierVariantes`, sur six axes de GEOMETRIE) ou des semis
+   (`verifierVocabulaire`). Aucun ne repond a « qu est-ce que cette region a que
+   les autres n ont pas ». A l ouverture du plan : ZERO region sur vingt — les
+   vingt employaient les trois familles historiques de leur theme, donc un biome
+   ne pouvait etre qu un rangement des memes formes.
+
+   LE PLANCHER EST ZERO ET IL EST ARITHMETIQUE, pas un gout : chaque theme porte
+   plus de familles que de regions (16 pour 9 a l Usine, 9 pour 6 ou moins
+   ailleurs), donc une exclusive par region est toujours atteignable. Le jour ou
+   un theme aura plus de regions que de familles, la borne montera d elle-meme.
+
+   LE PLAFOND ET LA VISEE SONT DEUX CHIFFRES DIFFERENTS, ET C EST DELIBERE. Le
+   dossier vise 0,50 de Jaccard sur le bati ; la mesure dit 0,60 — un noyau de
+   trois familles partage, plus une exclusive chacune, donne 3/5. Y descendre
+   demande de casser les noyaux de cinq themes, donc un lot de contenu de plus.
+   Le PLAFOND garde donc contre la REGRESSION (0,65, le pire mesure plus un
+   cran), la VISEE reste ecrite pour le lot qui la paiera, et l identite — deux
+   regions au jeu de familles strictement egal — est refusee sans condition.
+   Meme forme que `verifierVocabulaire`, qui plafonne a 0,70 pour une visee de
+   0,55. */
+const SIGNATURE_PLAFOND = 0.65, SIGNATURE_VISE = 0.50;
+
+function familles(v, diffIndex = 2) {
+  return new Set(deplierPose(v.poser)
+    .filter(o => (o.min ?? 0) <= diffIndex)
+    .map(o => o.kind));
+}
+
+export function verifierSignature() {
+  const soucis = [];
+  let pire = 0, ou = "";
+  for (const b of BIOMES) {
+    const vs = OBSTACLES[b.key] ?? [];
+    if (vs.length < 2) continue;
+    const fam = vs.map(v => familles(v));
+    const dispo = new Set(fam.flatMap(f => [...f]));
+    if (dispo.size < vs.length) {
+      soucis.push(`${b.key} : ${dispo.size} familles baties pour ${vs.length} regions`
+        + " — une exclusive par region n est plus atteignable");
+    }
+    for (let i = 0; i < vs.length; i++) {
+      const autres = new Set(fam.filter((_, j) => j !== i).flatMap(f => [...f]));
+      if (![...fam[i]].some(k => !autres.has(k))) {
+        soucis.push(`${b.key}/${vs[i].cle} : aucune famille batie a elle`
+          + " — elle n est qu un rangement des formes de ses voisines");
+      }
+    }
+    for (let i = 0; i < vs.length; i++) {
+      for (let j = i + 1; j < vs.length; j++) {
+        let n = 0;
+        for (const k of fam[i]) if (fam[j].has(k)) n++;
+        const jac = n / (fam[i].size + fam[j].size - n);
+        if (jac >= 0.999) {
+          soucis.push(`${b.key} : « ${vs[i].cle} » et « ${vs[j].cle} » batissent avec`
+            + ` EXACTEMENT les memes ${fam[i].size} familles`);
+        } else if (jac > pire) { pire = jac; ou = `${b.key} ${vs[i].cle}/${vs[j].cle}`; }
+      }
+    }
+  }
+  // le pire SORT avec le verdict : c est lui qui dira quand le plafond peut
+  // descendre a la valeur visee, et il ne se devine pas.
+  if (soucis.length === 0 && pire > SIGNATURE_PLAFOND) {
+    soucis.push(`toutes les regions ont une famille a elles, mais ${ou} en partage`
+      + ` ${(pire * 100).toFixed(0)} % de son bati — plafond ${SIGNATURE_PLAFOND * 100} %,`
+      + ` visee ${SIGNATURE_VISE * 100} %`);
+  }
+  return soucis;
+}
 
 /* DEUX BIOMES D UN MEME THEME DOIVENT DIFFERER ASSEZ POUR SE DISTINGUER. Sans
    plancher, deux biomes sont un doublon — et un doublon ne se signale pas tout

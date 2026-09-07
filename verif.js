@@ -151,6 +151,7 @@ const SUITE = [
      `regions` qui le rejoue sur des graines. Ne reste que ce qui se lit sur la
      TABLE : plancher, plafond, noms, bords declares. */
   ["variantes", () => B2.verifierVariantes()],
+  ["signature", () => B2.verifierSignature()],
   ["trame", () => B2.verifierTrame()],
   /* MEME TAILLE REELLE, ET POUR UNE RAISON DE PLUS : le miroir de cellule, le
      tremblement de la Friche et le voisinage entre cellules ne se lisent pas
