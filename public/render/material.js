@@ -1,4 +1,4 @@
-import { BIOMES, loisDe, mulberry32 } from "/shared/biomes.js";
+import { BIOMES, clesDe, loiCle, loisDe, mulberry32 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { PX_PER_M } from "/shared/units.js";
 import { GFX_LOW, gfx, signalerErreur } from "../core/state.js";
@@ -1471,23 +1471,41 @@ const SOL_REGION = {
   /* LE TRAITEMENT EST AJOURE — on marche sur le caillebotis d une passerelle,
      pas sur du beton — et LA ZONE ROBOTISEE est le seul sol NEUF du depot :
      personne n y marche, donc rien ne l use. */
-  usine:     [T_LISSE, T_MARQUE, T_MOUILLE, T_DALLE, T_POUDRE, T_BITUME, T_GRANULAT,
-              T_AJOURE, T_TECHNIQUE],
+  usine: {
+    chaine: T_LISSE, carrefour: T_MARQUE, maintenance: T_MOUILLE,
+    utilites: T_GRANULAT, degagement: T_DALLE, magasin: T_POUDRE,
+    traitement: T_AJOURE, robotisee: T_TECHNIQUE, expedition: T_BITUME,
+  },
   // le laminoir est couvert de CALAMINE : un sol qui scintille par plaques.
-  fonderie:  [T_LISSE, T_GRANULAT, T_MOUILLE, T_MINERAL, T_DALLE],
+  fonderie: {
+    coulee: T_LISSE, sablerie: T_GRANULAT, refroidissement: T_MOUILLE,
+    // le parc a minerai est POUDREUX : le seul sol rouge du depot, et il tient
+    // sa couleur de ce qui est stocke dessus.
+    laminoir: T_MINERAL, minerai: T_POUDRE, puits: T_DALLE,
+  },
   /* LA CASSE EST HUILEUSE, DONC ELLE RENVOIE, et le chantier est une DALLE
      BRUTE — le seul sol de la Friche qui ne soit pas encore abime. */
-  friche:    [T_TERRE, T_GRANULAT, T_MOUILLE, T_VEGETAL, T_DALLE],
+  friche: {
+    champ: T_TERRE, mur: T_GRANULAT, casse: T_MOUILLE,
+    // le terrain repris est le seul VEGETAL du depot, et c est sa definition.
+    chantier: T_DALLE, repris: T_VEGETAL, effondrement: T_POUDRE,
+  },
   // le chantier orbital n a pas de sol : ce qu on voit est le REPERAGE peint
   // sur son ossature.
-  nebuleuse: [T_TECHNIQUE, T_AJOURE, T_LISSE, T_MARQUE, T_MINERAL],
+  nebuleuse: {
+    derive: T_TECHNIQUE, dock: T_AJOURE, coursive: T_LISSE,
+    chantier: T_MARQUE, breche: T_MINERAL,
+  },
   // les capsules marchent sur un plancher DEMONTABLE, pose sur la coursive.
-  secteur:   [T_MARQUE, T_MOUILLE, T_BITUME, T_TECHNIQUE, T_DALLE],
+  secteur: {
+    rue: T_MARQUE, ruelle: T_MOUILLE, marche: T_BITUME,
+    capsules: T_TECHNIQUE, parvis: T_DALLE,
+  },
 };
 
 export function traitementDe(cle, loi) {
   const t = SOL_REGION[cle] ?? SOL_REGION.usine;
-  return t[loi] ?? t[0];
+  return t[loiCle(cle, loi)] ?? T_LISSE;
 }
 
 const TUILE = {
@@ -1530,16 +1548,27 @@ export function verifierMatiere() {
   for (const b of BIOMES) {
     const t = SOL_REGION[b.key];
     if (!t) { soucis.push(`${b.key} : aucun traitement de sol`); continue; }
-    const n = loisDe(b.key);
-    if (t.length !== n) soucis.push(`${b.key} : ${t.length} traitements de sol pour ${n} regions`);
+    /* LES DEUX SENS, ET C EST TOUT L INTERET DE LA CLEF. Une entree pour une
+       region qui n existe pas est un reglage mort ; une region sans entree
+       repliait en silence sur le premier traitement. Ni l un ni l autre n etait
+       visible tant que la table etait indexee par RANG. */
+    const cles = clesDe(b.key);
+    for (const c of cles) {
+      if (t[c] === undefined) soucis.push(`${b.key}/${c} : aucun traitement de sol`);
+    }
+    for (const c of Object.keys(t)) {
+      if (!cles.includes(c)) soucis.push(`${b.key}/${c} : traitement de sol pour une region qui n existe pas`);
+    }
     const vus = new Map();
-    for (let i = 0; i < t.length; i++) {
-      if (!TRAITEMENT[t[i]]) { soucis.push(`${b.key}/region ${i} : traitement ${t[i]} inconnu`); continue; }
-      tires.add(t[i]);
-      if (vus.has(t[i])) {
-        soucis.push(`${b.key} : les regions ${vus.get(t[i])} et ${i} partagent le traitement de sol ${t[i]}`
+    for (const c of cles) {
+      const v = t[c];
+      if (v === undefined) continue;
+      if (!TRAITEMENT[v]) { soucis.push(`${b.key}/${c} : traitement ${v} inconnu`); continue; }
+      tires.add(v);
+      if (vus.has(v)) {
+        soucis.push(`${b.key} : « ${vus.get(v)} » et « ${c} » partagent le traitement de sol ${v}`
           + " — leur frontiere ne se verra pas");
-      } else vus.set(t[i], i);
+      } else vus.set(v, c);
     }
   }
   for (const k of Object.keys(SOL_REGION)) {

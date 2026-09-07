@@ -8,6 +8,86 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Une table par région se lit par CLEF, jamais par rang (0.43.19)
+
+**Le défaut le plus silencieux du plan, et il était déjà livré.** `AIR`
+(`props.js`) et `SOL_REGION` (`material.js`) étaient des tableaux indexés par
+**rang** : insérer une région au milieu d'`OBSTACLES` décale toutes les
+suivantes, donc chacune hérite des props **et** du sol de sa voisine. Mesuré sur
+le code de 0.43.18 :
+
+| thème | régions portant le sol et les props d'une autre | depuis |
+|---|---:|---|
+| usine | **6 sur 9** | 0.43.6 |
+| friche | **2 sur 5** | 0.43.8 |
+
+Aucun des cinquante-huit vérificateurs ne pouvait le voir : les deux tables
+restaient **complètes et bien formées**. C'est exactement ce que `loiNom` avait
+payé au lot 5 — et la correction d'alors n'avait été appliquée qu'**à la
+traduction**. `clesDe(theme)` et `loiCle(theme, loi)` sont maintenant le point de
+passage, et les deux vérificateurs croisent **dans les deux sens**.
+
+**Le re-clefage a découvert un défaut de contenu que le désalignement masquait.**
+Une fois chaque région rendue à son air, `verifierVocabulaire` remonte de 63 % à
+**67 %** : le traitement à `[3, 5]` **contenait** la maintenance `[3]`. Et le
+correctif ne pouvait pas être une redistribution —
+
+- l'Usine a **neuf** régions pour **six** quartiers, dont **deux tirés seuls**
+  (maintenance `[3]`, utilités `[5]`) ;
+- toute paire contenant l'un des deux contient donc une région entière ;
+- les **six** paires de `{0, 1, 2, 4}` étaient déjà prises par les six autres.
+
+Le catalogue était le goulot une seconde fois. **Un septième quartier**, trois
+props neufs qui n'appartiennent qu'au traitement — la vanne (un volant vu de
+dessus, la seule forme de ce genre du semis), le fût sur rétention (un rond dans
+un carré ; le bidon de la Friche est couché et rouillé, celui-ci est debout et
+rangé), la douche de sécurité (**le seul prop du dépôt qui parle du corps**). Le
+bac et la hotte suivent : ils ne sont posés que là.
+
+| | pire recouvrement de props |
+|---|---:|
+| 0.43.18, table désalignée | 63 % (faux) |
+| re-clefée, avant le quartier | **67 %** (traitement ⊃ maintenance) |
+| après | **63 %** (magasin/expédition) |
+
+**Deux régions neuves, et la première forme MOLLE du dépôt.** Le parc à minerai
+(Fonderie) et le terrain repris (Friche) partagent une silhouette que rien
+n'avait encore : un bord irrégulier et **continu**, sans un seul angle — tout le
+reste du jeu est usiné ou cassé.
+
+**Une forme ronde ne peut pas passer `verifierEmpreinte`, et c'est de
+l'arithmétique.** Un contour circulaire inscrit dans son rectangle laisse
+`1 - π/4` = **21,5 %** de vide au mieux, pour un seuil de **10 %** — la collision
+est une AABB, un tas rond ferait buter sur du vide à ses quatre coins. Premier
+jet mesuré à **37 %**. La forme parcourt donc le **périmètre** de sa boîte avec
+un retrait vers l'intérieur :
+
+| `MOLLE_CREUX` | vide mesuré |
+|---:|---:|
+| 0,14 | 37 % |
+| 0,10 | 23 % |
+| 0,06 | 13 % |
+| **0,04** | **vert** |
+
+**État des trente et une régions :**
+
+| thème | régions | avec une signature |
+|---|---:|---:|
+| usine | 9 | 7 |
+| **fonderie** | **6** | **5** |
+| **friche** | **6** | **3** |
+| nébuleuse | 5 | 3 |
+| secteur | 5 | 4 |
+| **total** | **31** | **22** |
+
+**Et une passe de vérification écrite puis retirée.** `verifierDessin` ne
+traverse le corps d'un prop que si le semis le tire ; on a donc ajouté une passe
+qui les dessine tous, comme la cuisson du sol. Mesure avant de la garder : les
+soixante vues atteignent **60 identifiants sur 60**, et ce n'est pas de la chance
+— `FUITE` fait tirer une part des props dans le fonds du thème entier, donc
+**toute** la table est atteignable depuis n'importe quelle cellule. Une garde qui
+ne peut rien attraper se supprime.
+
 ### La sixième primitive de trame, et l'Usine à neuf régions (0.43.18)
 
 **La FAILLE était déclarée dans le dossier et jamais posée.** Le `creux` existait
@@ -24,7 +104,7 @@ personne n'y marche. Un endroit propre dans une usine sale dit tout.
 | thème | régions | avec une signature |
 |---|---:|---:|
 | **usine** | **9** | **7** |
-| fonderie | 5 | 3 |
+| fonderie | 5 | 4 |
 | friche | 5 | 2 |
 | nébuleuse | 5 | 3 |
 | secteur | 5 | 4 |

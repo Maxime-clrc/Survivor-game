@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, loisDe, B_CARCASSE, B_CHAINE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, loiCle, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -45,7 +45,8 @@ const P_CAILLEBOTIS = 1, P_CABLE = 2, P_TUYAU = 3,
       P_NEON_SOL = 45, P_PLAQUE_EGOUT = 46, P_GAINE = 47, P_FLAQUE = 48,
       P_GERBEUR = 49, P_TRANSPALETTE = 50, P_CALE = 51, P_SERVANTE = 52,
       P_CARTER = 53, P_COFFRET_HT = 54,
-      P_PNEUS = 55, P_MOTEUR = 56, P_PARPAINGS = 57, P_PLOT = 58;
+      P_PNEUS = 55, P_MOTEUR = 56, P_PARPAINGS = 57, P_PLOT = 58,
+      P_VANNE = 59, P_FUT = 60, P_DOUCHE = 61;
 
 /* UN PROP QUI BOUGE N'EST PAS UN SIGNAL, A UNE CONDITION QUI SE VERIFIE : SON
    MOUVEMENT EST CONTINU ET PERIODIQUE, donc il n'a ni debut ni fin, donc il
@@ -78,7 +79,8 @@ const EMISSIF = {
 const TABLE = {
   usine: [P_CONVOYEUR, P_CONVOYEUR, P_CONVOYEUR, P_BRAS, P_PRESSE, P_VENTILATION,
           P_PALETTIER, P_CAISSES, P_ALLEE, P_ALLEE, P_MARQUAGE, P_CABLE,
-          P_GERBEUR, P_TRANSPALETTE, P_CALE, P_SERVANTE, P_CARTER, P_COFFRET_HT],
+          P_GERBEUR, P_TRANSPALETTE, P_CALE, P_SERVANTE, P_CARTER, P_COFFRET_HT,
+          P_VANNE, P_FUT, P_DOUCHE],
   // la PLAQUE et le COFFRET sont SUPPRIMES du depot, pas deplaces : elle etait le
   // dernier lieu a les tirer, et un prop que plus aucune table ne tire ne
   // s'oublie pas au catalogue. Elle garde le caillebotis et le tuyau — une
@@ -144,6 +146,15 @@ const ZONES = {
     [P_SERVANTE, P_CARTER, P_CABLE, P_VENTILATION],
     [P_GERBEUR, P_TRANSPALETTE, P_CALE, P_CAISSES],
     [P_COFFRET_HT, P_CABLE, P_MARQUAGE, P_VENTILATION],
+    /* UN SEPTIEME QUARTIER, ET C EST UNE MESURE QUI L A EXIGE. A neuf regions
+       pour six quartiers dont DEUX tires seuls, toute paire de quartiers
+       CONTENAIT une region : le traitement a [3, 5] contenait la maintenance
+       (67 % de Jaccard) et les utilites. Les six paires de {0,1,2,4} etaient
+       deja prises. Redistribuer ne pouvait donc plus rien — il fallait des
+       props de plus, ce que le dossier appelle « le catalogue est le goulot ».
+       Le traitement tire ce quartier SEUL : trois props que personne d autre du
+       theme ne pose, donc un recouvrement nul. */
+    [P_VANNE, P_VANNE, P_FUT, P_DOUCHE],
   ],
   // elle COULE : le metal liquide, ce qui le met en forme, ce qui en sort, et ce
   // qu on jette.
@@ -215,20 +226,26 @@ const QUARTIER = {
            [B_POUTRE]: 3,
            // le bac et la hotte ENTRETIENNENT ; la cage et le portique PRODUISENT,
            // et c est la seule chose qui travaille encore ici.
-           [B_BAC]: 3, [B_HOTTE]: 3, [B_CAGE]: 0, [B_PORTIQUE]: 0 },
+           // le bac et la hotte TRAITENT — ils ne sont poses que la, et c est
+           // leur quartier qui les entoure, pas celui de l entretien.
+           [B_BAC]: 6, [B_HOTTE]: 6, [B_CAGE]: 0, [B_PORTIQUE]: 0 },
   // le four COULE, la cuve MOULE, la conduite appartient au rebut — c est par
   // elle que part ce qui ne sert plus.
   // le chassis et le malaxeur METTENT EN FORME, le bassin est ce qui SORT.
   fonderie: { [B_FOUR]: 0, [B_CUVE]: 1, [B_CONDUITE]: 3,
               [B_MOULE]: 1, [B_MALAXEUR]: 1, [B_BASSIN]: 2, [B_FOSSE]: 2,
               // le laminoir COULE encore : c est du metal en mouvement.
-              [B_LAMINOIR]: 0 },
+              [B_LAMINOIR]: 0,
+              // le minerai n est pas encore fondu : c est du STOCK, pas du feu.
+              [B_TAS]: 2 },
   // la carcasse fait la CASSE, le mur fait la CLOTURE, et une ruine est le seul
   // endroit ou il reste quelque chose d allume.
   // la pile d epaves fait la CASSE comme la carcasse ; le grillage, le poteau
   // et la banche FERMENT ou DELIMITENT — c est le quartier de la cloture.
   friche: { [B_CARCASSE]: 1, [B_MUR]: 2, [B_RUINE]: 3,
-            [B_EPAVES]: 1, [B_GRILLAGE]: 2, [B_POTEAU]: 2, [B_BANCHE]: 2 },
+            [B_EPAVES]: 1, [B_GRILLAGE]: 2, [B_POTEAU]: 2, [B_BANCHE]: 2,
+            // ce qui pousse est ce qui a REPRIS : le quartier de la vegetation.
+            [B_BOSQUET]: 0, [B_RONCE]: 0 },
   // la coque et ses debris font l EPAVE, la travee est ce a quoi on s AMARRE.
   // la coque et ses debris font l EPAVE ; le bras, la cloison et la console
   // sont ce a quoi on s AMARRE ou ce qui dessert — le quartier de la travee.
@@ -634,6 +651,9 @@ function dessin(p, ox, oy) {
     case P_SERVANTE: return servante(p, ox, oy);
     case P_CARTER: return carter(p, ox, oy);
     case P_COFFRET_HT: return coffretHt(p, ox, oy);
+    case P_VANNE: return vanne(p, ox, oy);
+    case P_FUT: return futRetention(p, ox, oy);
+    case P_DOUCHE: return doucheSecu(p, ox, oy);
     case P_PNEUS: return pneus(p, ox, oy);
     case P_MOTEUR: return moteur(p, ox, oy);
     case P_PARPAINGS: return parpaings(p, ox, oy);
@@ -1878,88 +1898,91 @@ const TRACES_CONNUES = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
    `verifierVocabulaire` compare maintenant les regions deux a deux ; rien ne le
    faisait, et les deux tables etaient vertes. */
 const AIR = {
-  usine: [
-    { dens: 1.00, ech: [0.72, 0.66], zones: [0, 2], matieres: [TRACE_SOUILLURE, TRACE_ROULAGE] },
-    { dens: 0.82, ech: [0.70, 0.60], zones: [2, 1], matieres: [TRACE_ROULAGE, TRACE_POUSSIERE] },
+  usine: {
+    chaine: { dens: 1.00, ech: [0.72, 0.66], zones: [0, 2], matieres: [TRACE_SOUILLURE, TRACE_ROULAGE] },
+    carrefour: { dens: 0.82, ech: [0.70, 0.60], zones: [2, 1], matieres: [TRACE_ROULAGE, TRACE_POUSSIERE] },
     // la maintenance ne tire QUE de l entretien : on n y fabrique rien.
-    { dens: 1.34, ech: [0.56, 0.48], zones: [3], matieres: [TRACE_SOUILLURE] },
-    // le degagement ENTRETIENT et STOCKE, il ne fabrique pas : c est la seule
-    // region du theme qui ne tire aucune zone de production.
-    // le degagement est une respiration DANS une halle de production : il tire
-    // ce qu on y fabrique et ce qu on y range, jamais l energie — a [1, 5] il
-    // CONTENAIT les utilites, donc 67 % de Jaccard.
-    { dens: 0.58, ech: [0.88, 0.86], zones: [1, 0], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
-    /* UNE SEULE ZONE, ET C EST CE QUI LES SEPARE DE TOUT LE RESTE. Le theme n a
-       que quatre quartiers de props : a six regions, les paires distinctes sont
-       epuisees. Un magasin ne pose QUE du stockage et une expedition QUE de la
-       circulation — un inventaire etroit est une identite, pas un manque. */
+    maintenance: { dens: 1.34, ech: [0.56, 0.48], zones: [3], matieres: [TRACE_SOUILLURE] },
+    /* UNE SEULE ZONE, ET C EST UNE IDENTITE PLUS QU UN MANQUE. A [5, 3] les
+       utilites CONTENAIENT la maintenance — son quartier entier plus le leur,
+       donc 67 % de Jaccard. Un inventaire etroit separe mieux qu un large.
+       Leur retention DEBORDE : une aureole autour de ce qui a fui. */
+    utilites: { dens: 0.76, ech: [0.74, 0.62], zones: [5], matieres: [TRACE_AUREOLE] },
+    // une respiration DANS une halle de production : ce qu on y fabrique et ce
+    // qu on y range, jamais l energie — a [1, 5] il CONTENAIT les utilites.
+    degagement: { dens: 0.58, ech: [0.88, 0.86], zones: [1, 0], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
     // le magasin STOCKE et MANUTENTIONNE : gerbeur, transpalette, cale. Les
     // rayures sont les griffes de fourche sur le beton d une allee de rack.
-    { dens: 0.90, ech: [0.66, 0.54], zones: [1, 4], matieres: [TRACE_ROULAGE, TRACE_RAYURES] },
-    // l expedition manutentionne puis fait CIRCULER : l inverse du magasin.
-    { dens: 0.70, ech: [0.80, 0.70], zones: [4, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
-    // la retention des utilites DEBORDE : une aureole autour de ce qui a fui.
-    /* LES UTILITES NE TIRENT QUE L ENERGIE, et c est mesure : a [5, 3] elles
-       CONTENAIENT la maintenance — son quartier entier plus le leur, donc un
-       Jaccard de 67 %. Un inventaire etroit est une identite. */
-    { dens: 0.76, ech: [0.74, 0.62], zones: [5], matieres: [TRACE_AUREOLE] },
-    // le traitement ENTRETIENT et se branche : ce qui traine y est humide.
-    { dens: 0.88, ech: [0.68, 0.58], zones: [3, 5], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
+    magasin: { dens: 0.90, ech: [0.66, 0.54], zones: [1, 4], matieres: [TRACE_ROULAGE, TRACE_RAYURES] },
+    // le traitement ne tire QUE ce qui traite, et le sol y RUISSELLE — la seule
+    // region de l Usine qui porte cette trace, et la seule qui parle du corps.
+    traitement: { dens: 0.88, ech: [0.68, 0.58], zones: [6], matieres: [TRACE_RUISSELLEMENT] },
     // la zone robotisee PRODUIT et MANUTENTIONNE, sans personne pour ranger.
-    { dens: 0.72, ech: [0.62, 0.50], zones: [0, 4], matieres: [TRACE_FISSURES, TRACE_ROULAGE] },
-  ],
-  fonderie: [
-    { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
+    robotisee: { dens: 0.72, ech: [0.62, 0.50], zones: [0, 4], matieres: [TRACE_FISSURES, TRACE_ROULAGE] },
+    // l expedition manutentionne puis fait CIRCULER : l inverse du magasin.
+    expedition: { dens: 0.70, ech: [0.80, 0.70], zones: [4, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
+  },
+  fonderie: {
+    coulee: { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
     // le sable COULE des malaxeurs, et la coulee pointe vers celui qui l a lache.
-    { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_COULEE, TRACE_CORROSION] },
+    sablerie: { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_COULEE, TRACE_CORROSION] },
     // le bassin laisse un depot de sels en s evaporant : une aureole, pas une tache.
-    { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
+    refroidissement: { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
     // le laminoir tire ce qui COULE et ce qui en SORT : le seul de son theme.
-    { dens: 1.05, ech: [0.78, 0.64], zones: [0, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
-    { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
-  ],
-  friche: [
-    { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
-    { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
-    // l huile coule des piles d epaves, toujours vers le bas de la pile.
-    // la casse a sa MECANIQUE : pneus et moteurs deposes, que rien d autre ne tire.
-    { dens: 0.70, ech: [0.82, 1.08], zones: [4, 1], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
+    laminoir: { dens: 1.05, ech: [0.78, 0.64], zones: [0, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
+    // le parc a minerai ne tire QUE ce qu on jette et ce qui sert a manier.
+    minerai: { dens: 0.94, ech: [0.86, 0.80], zones: [3], matieres: [TRACE_POUSSIERE] },
+    puits: { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
+  },
+  friche: {
+    champ: { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
+    mur: { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
+    // la casse a sa MECANIQUE : pneus et moteurs deposes, que rien d autre ne
+    // tire, et l huile coule des piles d epaves, toujours vers le bas de la pile.
+    casse: { dens: 0.70, ech: [0.82, 1.08], zones: [4, 1], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
+    // un chantier n a que ce qu on y a livre et pas encore monte.
+    chantier: { dens: 0.64, ech: [0.72, 0.90], zones: [5], matieres: [TRACE_FISSURES] },
+    // le terrain repris ne pose QUE de la vegetation : c est tout son propos.
+    repris: { dens: 1.24, ech: [0.60, 1.00], zones: [0], matieres: [TRACE_DECHETS] },
     // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
     // zones sur quatre rendaient l union du theme entier.
-    { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
-    // un chantier n a RIEN a lui : ce qui traine est ce qui fermait le terrain.
-    // un chantier n a que ce qu on y a livre et pas encore monte.
-    { dens: 0.64, ech: [0.72, 0.90], zones: [5], matieres: [TRACE_FISSURES] },
-  ],
-  nebuleuse: [
+    effondrement: { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
+  },
+  nebuleuse: {
     // la derive tire l EPAVE et ce qui a gele dessus, jamais l amarrage : a
     // [0,3] elle partageait 71 % de ses props avec le dock.
-    { dens: 1.00, ech: [0.90, 1.05], zones: [0, 2], matieres: [TRACE_RAYURES, null] },
+    derive: { dens: 1.00, ech: [0.90, 1.05], zones: [0, 2], matieres: [TRACE_RAYURES, null] },
     // un dock ne pose QUE ce a quoi on s amarre : balise, antenne, rail, ancrage.
-    { dens: 1.10, ech: [0.66, 0.70], zones: [3], matieres: [TRACE_FISSURES] },
+    dock: { dens: 1.10, ech: [0.66, 0.70], zones: [3], matieres: [TRACE_FISSURES] },
     // la coursive tire ce qui FLOTTE et ce a quoi on s AMARRE, jamais la
     // signaletique du dock : a [1,3] elle partageait 83 % de ses props avec lui.
-    { dens: 0.52, ech: [1.30, 1.34], zones: [0, 1], matieres: [TRACE_CORROSION, null] },
+    coursive: { dens: 0.52, ech: [1.30, 1.34], zones: [0, 1], matieres: [TRACE_CORROSION, null] },
     // un chantier orbital tire ce qui a GELE dessus et ce a quoi on s AMARRE :
     // rien n y est encore une coque.
-    { dens: 0.80, ech: [0.70, 0.80], zones: [2, 3], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
-    { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
-  ],
-  secteur: [
-    { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
-    // la chaussee et ce qui la DESSERT par derriere : la place n est pas une rue
-    // vue de plus loin, elle a son propre inventaire.
-    { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
-    { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
+    chantier: { dens: 0.80, ech: [0.70, 0.80], zones: [2, 3], matieres: [TRACE_DECHETS, TRACE_FISSURES] },
+    breche: { dens: 0.86, ech: [0.80, 1.00], zones: [1, 2], matieres: [TRACE_RAYURES, TRACE_DECHETS] },
+  },
+  secteur: {
+    rue: { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
+    // la chaussee et ce qui la DESSERT par derriere : une ruelle n est pas une
+    // rue vue de plus pres, elle a son propre inventaire.
+    ruelle: { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
+    marche: { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
     // les capsules : la chaussee qu on habite et le coin ou l on se gare.
-    { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
-    { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
-  ],
+    capsules: { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
+    parvis: { dens: 0.60, ech: [0.82, 0.74], zones: [0, 3], matieres: [TRACE_ROULAGE, TRACE_FISSURES] },
+  },
 };
 
+/* PAR CLEF DE REGION, ET C EST LE DEFAUT QUE LE LOT 20 A PAYE. `AIR` etait
+   indexee par RANG : inserer une region au milieu d `OBSTACLES` decalait toutes
+   les suivantes, donc chacune heritait de l air de sa voisine. Six regions sur
+   neuf a l Usine et deux sur cinq a la Friche posaient les props d une autre, et
+   AUCUN verificateur ne pouvait le voir : la table restait complete et bien
+   formee. `SOL_REGION` portait le meme defaut sur les memes regions. */
 const airDe = (cle, loi) => {
   const t = AIR[cle] ?? AIR.usine;
-  return t[loi] ?? t[0];
+  return t[loiCle(cle, loi)] ?? Object.values(t)[0];
 };
 
 /* DEUX REGIONS D UN THEME DOIVENT AVOIR DEUX AIRS, et les deux tables se
@@ -1994,20 +2017,21 @@ export function verifierVocabulaire() {
   for (const [cle, zones] of Object.entries(ZONES)) {
     const t = AIR[cle];
     if (!t) continue;
-    const props = t.map(a => new Set(a.zones.flatMap(z => zones[z] ?? [])));
-    const mats = t.map(a => new Set((a.matieres ?? []).filter(m => m)));
-    for (let i = 0; i < t.length; i++) {
-      for (let j = i + 1; j < t.length; j++) {
+    const noms = Object.keys(t);
+    const props = noms.map(n => new Set(t[n].zones.flatMap(z => zones[z] ?? [])));
+    const mats = noms.map(n => new Set((t[n].matieres ?? []).filter(m => m)));
+    for (let i = 0; i < noms.length; i++) {
+      for (let j = i + 1; j < noms.length; j++) {
         const jp = jaccard(props[i], props[j]);
         if (jp >= 0.999) {
-          soucis.push(`${cle} : les regions ${i} et ${j} posent EXACTEMENT les memes`
+          soucis.push(`${cle} : « ${noms[i]} » et « ${noms[j]} » posent EXACTEMENT les memes`
             + ` ${props[i].size} props — elles ne different que par un nombre et un calibre`);
-        } else if (jp > pireProps) { pireProps = jp; ouProps = `${cle} ${i}/${j}`; }
+        } else if (jp > pireProps) { pireProps = jp; ouProps = `${cle} ${noms[i]}/${noms[j]}`; }
         if (mats[i].size && jaccard(mats[i], mats[j]) >= 0.999) {
-          soucis.push(`${cle} : les regions ${i} et ${j} marquent le sol des memes traces`);
+          soucis.push(`${cle} : « ${noms[i]} » et « ${noms[j]} » marquent le sol des memes traces`);
         } else if (mats[i].size) {
           const jm = jaccard(mats[i], mats[j]);
-          if (jm > pireMat) { pireMat = jm; ouMat = `${cle} ${i}/${j}`; }
+          if (jm > pireMat) { pireMat = jm; ouMat = `${cle} ${noms[i]}/${noms[j]}`; }
         }
       }
     }
@@ -2026,41 +2050,47 @@ export function verifierTraces() {
   const tirees = new Set();
   for (const [cle, zones] of Object.entries(ZONES)) {
     const t = AIR[cle];
-    const n = loisDe(cle);
     if (!t) { soucis.push(`${cle} : aucun air de region`); continue; }
-    if (t.length !== n) soucis.push(`${cle} : ${t.length} airs pour ${n} lois`);
-    const ref = ECHELLE_LIEU[cle] ?? [];
-    if (String(t[0]?.ech) !== String(ref) || t[0]?.dens !== 1) {
-      soucis.push(`${cle} : la loi 0 n est pas la reference du theme`);
+    // LES DEUX SENS : un air pour une region morte est un reglage mort, une
+    // region sans air repliait en silence sur celui de la premiere.
+    const cles = clesDe(cle);
+    for (const c of cles) if (!t[c]) soucis.push(`${cle}/${c} : aucun air de region`);
+    for (const c of Object.keys(t)) {
+      if (!cles.includes(c)) soucis.push(`${cle}/${c} : un air pour une region qui n existe pas`);
     }
-    for (let i = 0; i < t.length; i++) {
-      const a = t[i];
-      if (!(a.dens > 0 && a.dens <= 2)) soucis.push(`${cle}/loi ${i} : densite ${a.dens} hors de ]0 ; 2]`);
-      if (!Array.isArray(a.ech) || a.ech.length !== 2) soucis.push(`${cle}/loi ${i} : echelle mal formee`);
-      if (!a.zones?.length) soucis.push(`${cle}/loi ${i} : aucune zone de props`);
+    const ref = ECHELLE_LIEU[cle] ?? [];
+    const a0 = t[cles[0]];
+    if (String(a0?.ech) !== String(ref) || a0?.dens !== 1) {
+      soucis.push(`${cle} : « ${cles[0]} » n est pas la reference du theme`);
+    }
+    for (const [c, a] of Object.entries(t)) {
+      if (!(a.dens > 0 && a.dens <= 2)) soucis.push(`${cle}/${c} : densite ${a.dens} hors de ]0 ; 2]`);
+      if (!Array.isArray(a.ech) || a.ech.length !== 2) soucis.push(`${cle}/${c} : echelle mal formee`);
+      if (!a.zones?.length) soucis.push(`${cle}/${c} : aucune zone de props`);
       for (const z of a.zones ?? []) {
-        if (!(z >= 0 && z < zones.length)) soucis.push(`${cle}/loi ${i} : zone ${z} hors des ${zones.length}`);
+        if (!(z >= 0 && z < zones.length)) soucis.push(`${cle}/${c} : zone ${z} hors des ${zones.length}`);
       }
       if ((a.matieres ?? []).length !== (a.zones ?? []).length) {
-        soucis.push(`${cle}/loi ${i} : ${(a.matieres ?? []).length} matieres pour ${(a.zones ?? []).length} zones`);
+        soucis.push(`${cle}/${c} : ${(a.matieres ?? []).length} matieres pour ${(a.zones ?? []).length} zones`);
       }
       const vives = new Set((a.matieres ?? []).filter(m => m !== null));
-      if (vives.size < 1) soucis.push(`${cle}/loi ${i} : aucune matiere vive`);
+      if (vives.size < 1) soucis.push(`${cle}/${c} : aucune matiere vive`);
       for (const m of vives) {
-        if (!TRACES_CONNUES.has(m)) soucis.push(`${cle}/loi ${i} : trace inconnue ${m}`);
+        if (!TRACES_CONNUES.has(m)) soucis.push(`${cle}/${c} : trace inconnue ${m}`);
         else tirees.add(m);
       }
     }
-    for (let i = 0; i < t.length; i++) {
-      for (let j = i + 1; j < t.length; j++) {
-        const a = t[i], b = t[j];
+    const noms = Object.keys(t);
+    for (let i = 0; i < noms.length; i++) {
+      for (let j = i + 1; j < noms.length; j++) {
+        const a = t[noms[i]], b = t[noms[j]];
         if (Math.abs(a.dens - b.dens) < 0.12 && a.zones.join() === b.zones.join()
             && String(a.matieres) === String(b.matieres) && String(a.ech) === String(b.ech)) {
-          soucis.push(`${cle} : les lois ${i} et ${j} ont le meme air`);
+          soucis.push(`${cle} : « ${noms[i]} » et « ${noms[j]} » ont le meme air`);
         }
       }
     }
-    const zTirees = new Set(t.flatMap(a => a.zones ?? []));
+    const zTirees = new Set(Object.values(t).flatMap(a => a.zones ?? []));
     for (let z = 0; z < zones.length; z++) {
       if (!zTirees.has(z)) soucis.push(`${cle} : la zone de props ${z} n est tiree par aucune region`);
     }
@@ -2434,6 +2464,86 @@ function servante(p, ox, oy) {
   ctx.stroke();
   ctx.fillStyle = alpha(PROP.metal, 0.30);
   for (let i = 0; i < 4; i++) ctx.fillRect(-2, -h / 2 + (h / 4) * i + h / 8 - 1, 4, 2);
+}
+
+/* LA VANNE — UN VOLANT VU DE DESSUS, et c est un rond a rayons : rien d autre
+   dans le semis n a cette forme. Elle sort d un bout de conduite qui s arrete
+   la, ce qui dit que le reseau passe SOUS le sol.
+   Elle ne tourne pas : un mouvement continu appartient a la matiere, et une
+   vanne qui bouge annoncerait quelque chose. */
+function vanne(p, ox, oy) {
+  const r = 6 + p.p * 3.5;
+  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.fillRect(-r * 0.4 + ox, -r * 1.9 + oy, r * 0.8, r * 1.4);
+  ctx.beginPath(); ctx.arc(ox, oy, r, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = alpha(PROP.metalDark, 0.58);
+  ctx.fillRect(-r * 0.4, -r * 1.9, r * 0.8, r * 1.4);
+  ctx.strokeStyle = alpha(PROP.metal, 0.46);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI + p.p;
+    ctx.moveTo(-Math.cos(a) * r, -Math.sin(a) * r);
+    ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.rouille, 0.40);
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LE FUT SUR RETENTION — UN ROND DANS UN CARRE, et le carre est ce qui compte :
+   un bac de retention dit qu on a prevu que ca fuie. Le bidon de la Friche est
+   couche et rouille ; celui-ci est DEBOUT et range, c est le meme objet a deux
+   epoques et les deux silhouettes ne se confondent pas. */
+function futRetention(p, ox, oy) {
+  const c = 15 + p.p * 6, r = c * 0.34;
+  ctx.fillStyle = alpha(PROP.ombre, 0.30);
+  ctx.fillRect(-c / 2 + ox, -c / 2 + oy, c, c);
+  ctx.fillStyle = alpha(PROP.metalDark, 0.42);
+  ctx.fillRect(-c / 2, -c / 2, c, c);
+  ctx.strokeStyle = alpha(PROP.metal, 0.30);
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(-c / 2 + 1.5, -c / 2 + 1.5, c - 3, c - 3);
+  const d = (p.p - 0.5) * c * 0.22;
+  ctx.fillStyle = alpha(PROP.peint, 0.50);
+  ctx.beginPath(); ctx.arc(d, -d, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.ombre, 0.44);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(d, -d, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+  // la bonde, excentree : c est par elle qu on le vide, et elle donne le sens.
+  ctx.fillStyle = alpha(PROP.metalDark, 0.60);
+  ctx.beginPath(); ctx.arc(d + r * 0.42, -d - r * 0.42, 1.6, 0, Math.PI * 2); ctx.fill();
+}
+
+/* LA DOUCHE DE SECURITE — LE SEUL PROP DU DEPOT QUI PARLE DU CORPS. Tout le
+   reste dit ce que le lieu fabrique ; celle-ci dit ce qu il fait a qui y
+   travaille, et c est pour ca qu elle appartient au traitement.
+   Vue de dessus : une embase, un bras, la pomme, et la vasque de rincage a
+   cote. La poignee est le seul jaune franc du quartier. */
+function doucheSecu(p, ox, oy) {
+  const l = 13 + p.p * 5, r = 5 + p.p * 2.5;
+  ctx.fillStyle = alpha(PROP.ombre, 0.32);
+  ctx.beginPath(); ctx.arc(ox, oy, r * 1.15, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(-2 + ox, -l + oy, 4, l);
+  ctx.fillStyle = alpha(PROP.metal, 0.34);
+  ctx.fillRect(-2, -l, 4, l);
+  ctx.fillStyle = alpha(PROP.metal, 0.46);
+  ctx.beginPath(); ctx.arc(0, 0, r * 1.15, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = alpha(PROP.ombre, 0.40);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * r * 0.36, Math.sin(a) * r * 0.36);
+    ctx.lineTo(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9);
+  }
+  ctx.stroke();
+  ctx.fillStyle = alpha(PROP.peint, 0.62);
+  ctx.fillRect(-r * 1.5, -l + 1, r * 0.9, 2.4);
+  ctx.fillStyle = alpha(PROP.verre, 0.26);
+  ctx.beginPath(); ctx.arc(r * 1.7, -l * 0.55, r * 0.6, 0, Math.PI * 2); ctx.fill();
 }
 
 // LE CARTER DEPOSE — une coque courbe posee a l envers, avec ses trous de

@@ -10155,6 +10155,31 @@
                   semblables a 13 % alors que leurs densites different de 36 %.
                   Vingt regions sur vingt-neuf ont une signature.
 
+    0.43.19 lot 20 UNE TABLE PAR REGION SE LIT PAR CLEF, JAMAIS PAR RANG. `AIR`
+                  et `SOL_REGION` etaient des tableaux indexes par RANG :
+                  inserer une region au milieu d `OBSTACLES` decale toutes les
+                  suivantes, donc chacune heritait des props ET du sol de sa
+                  voisine. SIX REGIONS SUR NEUF a l Usine, DEUX SUR CINQ a la
+                  Friche, et aucun des 58 verificateurs ne pouvait le voir : les
+                  deux tables restaient completes et bien formees. C est ce que
+                  `loiNom` a paye au lot 5, corrige LA SEULEMENT. `clesDe` et
+                  `loiCle` sont le point de passage, et les deux verificateurs
+                  croisent dans LES DEUX SENS.
+                  LE RE-CLEFAGE A DECOUVERT UN DEFAUT DE CONTENU que le
+                  desalignement masquait : le traitement a [3, 5] CONTENAIT la
+                  maintenance [3], donc 67 %. Redistribuer ne pouvait rien — a
+                  neuf regions pour six quartiers dont deux tires seuls, toute
+                  paire les contenant contient une region, et les six paires de
+                  {0,1,2,4} etaient prises. UN SEPTIEME QUARTIER : vanne, fut
+                  sur retention, douche de securite. Le pire recouvrement
+                  redescend a 63 %.
+                  DEUX REGIONS NEUVES, le parc a minerai et le terrain repris,
+                  et la premiere forme MOLLE du depot. UNE FORME RONDE NE PEUT
+                  PAS PASSER `verifierEmpreinte` : un contour circulaire inscrit
+                  laisse 1 - pi/4 = 21,5 % de vide pour un seuil de 10 %. Elle
+                  parcourt donc le PERIMETRE de sa boite avec un retrait.
+                  Vingt-deux regions sur trente et une ont une signature.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10163,4 +10188,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.18";
+export const VERSION = "0.43.19";

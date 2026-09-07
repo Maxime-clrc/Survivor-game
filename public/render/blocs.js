@@ -9,7 +9,8 @@ import {
   B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE,
   B_AVEUGLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_FOSSE, B_POUTRE,
   B_LAMINOIR, B_MEMBRURE, B_BORDE, B_ALVEOLE, B_COURSIVE,
-  B_BAC, B_HOTTE, B_CAGE, B_PORTIQUE, gabaritsDe,
+  B_BAC, B_HOTTE, B_CAGE, B_PORTIQUE,
+  B_TAS, B_BOSQUET, B_RONCE, gabaritsDe,
 } from "/shared/biomes.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { biomeKey, ctx, lumDir, skin } from "./stage.js";
@@ -74,6 +75,7 @@ const SILHOUETTE = {
   devanture: formeDevanture, mat: formePylone, conteneur: formeConteneur,
   palettier: formePalettier, pile: formePile, quai: formeQuai,
   ouverte: formeOuverte, cadre: formeCadre, nappe: formeNappe,
+  masse_molle: formeMasseMolle,
 };
 
 const HABILLAGE = {
@@ -88,6 +90,7 @@ const HABILLAGE = {
   aveugle, escalier, monolithe, etal, fosse, poutre,
   laminoir, membrure, borde, alveole, coursive,
   bac, hotte, cage, portique,
+  tas, bosquet, ronce,
 };
 
 // CE QUI SORT DE L EMPREINTE. Deux familles seulement, et c est un troisieme
@@ -133,6 +136,7 @@ const BLOC = {
        pas de relief vers la camera, qui le ferait lire comme une masse. */
     [B_FOSSE]: { sil: "nappe", hab: "fosse", creux: true },
     [B_LAMINOIR]: { sil: "caisson", hab: "laminoir" },
+    [B_TAS]: { sil: "masse_molle", hab: "tas" },
   },
   friche: {
     [B_RUINE]: { sil: "pan", hab: "ruine", hors: "pan" },
@@ -143,6 +147,10 @@ const BLOC = {
     // lieu suffit a separer une cloture d atelier d une cloture de casse.
     [B_GRILLAGE]: { sil: "cadre", hab: "cloture" },
     [B_POTEAU]: { sil: "mat", hab: "poteau" },
+    // LA MEME SILHOUETTE QUE LE TAS, une autre matiere : ce qui s accumule tout
+    // seul et ce qui pousse tout seul ont le meme bord.
+    [B_BOSQUET]: { sil: "masse_molle", hab: "bosquet" },
+    [B_RONCE]: { sil: "mur_bas", hab: "ronce" },
     /* PAS `mur_bas` : ses creneaux disent qu un mur a CASSE, et une banche est
        neuve. `verifierEmpreinte` l a refusee a 15,6 % pour un seuil de 10 —
        une silhouette de ruine sur un panneau de coffrage faisait buter sur du
@@ -439,6 +447,48 @@ function formeNappe(g, o) {
   g.closePath();
 }
 
+
+/* LA MASSE MOLLE — LA PREMIERE FORME DU DEPOT QUI NE SOIT NI USINEE NI CASSEE.
+   Tout le reste est chanfreine, creneau ou cisaille : des aretes que quelqu un a
+   faites. Un tas s est fait TOUT SEUL — son bord est irregulier et CONTINU, sans
+   un seul angle, et c est ce qui le rend reconnaissable d une vue entiere.
+
+   ELLE SUIT LE PERIMETRE DE SA BOITE, ELLE N EST PAS UN CERCLE — et c est
+   `verifierEmpreinte` qui l a impose. Un contour rond inscrit dans son rectangle
+   laisse 21 % de vide dans le meilleur des cas (1 - pi/4), donc AUCUNE forme
+   ronde ne peut passer un seuil de 10 % : la collision est une AABB, et un tas
+   circulaire ferait buter sur du vide a ses quatre coins. Premier jet mesure a
+   37 %.
+   ON PARCOURT DONC LE PERIMETRE et on RENTRE chaque point d au plus
+   `MOLLE_CREUX` : le bord reste irregulier et sans angle — c est tout ce qui
+   compte — et la boite reste pleine a 93 %. */
+const MOLLE_N = 28, MOLLE_CREUX = 0.04;
+function formeMasseMolle(g, o) {
+  const w = o.w, h = o.h;
+  const s = graine(o);
+  const p = [];
+  const per = 2 * (w + h);
+  for (let i = 0; i < MOLLE_N; i++) {
+    // un point du PERIMETRE de la boite, puis un retrait vers l interieur.
+    let d = (i / MOLLE_N) * per, x, y, nx, ny;
+    if (d < w) { x = -w / 2 + d; y = -h / 2; nx = 0; ny = 1; }
+    else if (d < w + h) { d -= w; x = w / 2; y = -h / 2 + d; nx = -1; ny = 0; }
+    else if (d < 2 * w + h) { d -= w + h; x = w / 2 - d; y = h / 2; nx = 0; ny = -1; }
+    else { d -= 2 * w + h; x = -w / 2; y = h / 2 - d; nx = 1; ny = 0; }
+    // le bruit est DETERMINISTE et periodique en i : deux tas voisins n ont pas
+    // la meme silhouette, et le meme tas la garde d une image a l autre.
+    const k = MOLLE_CREUX * (((s >> (i % 13)) & 3) / 3);
+    p.push([x + nx * w * k, y + ny * h * k]);
+  }
+  g.beginPath();
+  g.moveTo((p[MOLLE_N - 1][0] + p[0][0]) / 2, (p[MOLLE_N - 1][1] + p[0][1]) / 2);
+  for (let i = 0; i < MOLLE_N; i++) {
+    const j = (i + 1) % MOLLE_N;
+    g.quadraticCurveTo(p[i][0], p[i][1], (p[i][0] + p[j][0]) / 2, (p[i][1] + p[j][1]) / 2);
+  }
+  g.closePath();
+}
+
 /* LA CUVE EST UN RECIPIENT, ET UN RECIPIENT N A PAS D ANGLE. Son biseau est
    ALLONGE — large en x, court en y — la ou l octogone du four les prend egaux :
    c est ce qui la rend capsulaire au lieu de trapue, et donc ce qui la separe
@@ -628,6 +678,20 @@ function enregistreur() {
     // enroulements. Aucune ne le fait, et c est la chaine qui l a revele — le
     // banc a leve `g.rect is not a function` au lieu de mesurer du vide.
     rect(x, y, w, h) { poly.push([x, y], [x + w, y], [x + w, y + h], [x, y + h]); },
+    /* UNE COURBE S ECHANTILLONNE, ELLE NE SE RESUME PAS A SON POINT D ARRIVEE.
+       La masse molle est le premier contour courbe du depot, et le banc a leve
+       `g.quadraticCurveTo is not a function` — comme il avait leve `g.rect`
+       avant elle. Garder seulement l extremite sous-estimerait le remplissage
+       d une forme bombee et le surestimerait d une forme creusee : on pose
+       quatre points sur la courbe, ce qui suffit a un test de parite. */
+    quadraticCurveTo(cx, cy, x, y) {
+      const [px, py] = poly.length ? poly[poly.length - 1] : [cx, cy];
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 4, u = 1 - t;
+        poly.push([u * u * px + 2 * u * t * cx + t * t * x,
+                   u * u * py + 2 * u * t * cy + t * t * y]);
+      }
+    },
     closePath() {},
   };
 }
@@ -3192,6 +3256,95 @@ function portique(o, S) {
   const c = Math.max(4, L * 0.08);
   if (long) ctx.fillRect(-w / 2 + L * 0.34, -E * 0.34, c, E * 0.68);
   else ctx.fillRect(-E * 0.34, -h / 2 + L * 0.34, E * 0.68, c);
+}
+
+
+/* LE TAS DE MINERAI — DU GRAIN, ET UNE CRETE. Ce qui le fait lire est le
+   DEGRADE : clair sur la crete, sombre au pied, parce qu un tas a une pente. Et
+   la coulee au pied, la ou il s est etale — c est ce qui dit qu on l a verse et
+   pas pose. */
+function tas(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  const g = ctx.createRadialGradient(-w * 0.10, -h * 0.14, 0, 0, 0, Math.max(w, h) * 0.55);
+  g.addColorStop(0, alpha("#7a4a30", 0.72));
+  g.addColorStop(0.55, alpha("#4e2f1e", 0.66));
+  g.addColorStop(1, alpha("#2a1a11", 0.62));
+  ctx.fillStyle = g;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  // LE GRAIN : des points fins, plus denses au pied. Un tas n a pas de texture
+  // uniforme, il a une granulometrie.
+  const n = 120;
+  for (let i = 0; i < n; i++) {
+    const a = ((s * (i + 3)) % 997) / 997 * Math.PI * 2;
+    const d = Math.sqrt(((s * (i + 11)) % 991) / 991);
+    ctx.fillStyle = alpha(i & 1 ? "#000000" : "#9a6a4a", 0.10 + d * 0.10);
+    ctx.fillRect(Math.cos(a) * w * 0.46 * d, Math.sin(a) * h * 0.46 * d, 1.6, 1.6);
+  }
+  // LA CRETE, un trait clair en arc : la ligne de plus grande hauteur.
+  ctx.strokeStyle = alpha("#c08a5a", 0.20);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, h * 0.06, Math.min(w, h) * 0.26, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.stroke();
+}
+
+/* LE BOSQUET — SEMI-OPAQUE, ET C EST SA REGLE. Il ne se peint pas en plein : un
+   fond sombre, puis des touffes claires par-dessus, et entre elles on devine le
+   sol. On voit des SILHOUETTES a travers sans pouvoir tirer proprement, ce que
+   rien d autre du depot ne fait. */
+function bosquet(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#0f150c", 0.54);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  const n = 26;
+  for (let i = 0; i < n; i++) {
+    const a = ((s * (i + 5)) % 983) / 983 * Math.PI * 2;
+    const d = Math.sqrt(((s * (i + 17)) % 977) / 977) * 0.46;
+    const r = Math.min(w, h) * (0.10 + (((s >> (i % 11)) & 3) / 3) * 0.10);
+    ctx.fillStyle = alpha(PROP.vert, 0.16 + ((i & 3) * 0.05));
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * w * d, Math.sin(a) * h * d, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // LES TRONCS, deux ou trois traits sombres qui montent : sans eux c est de la
+  // mousse, pas un bosquet.
+  ctx.strokeStyle = alpha("#1d1a12", 0.44);
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  for (let i = 0; i < 3; i++) {
+    const x = -w * 0.24 + w * 0.24 * i + ((s >> i) & 1) * 6;
+    ctx.moveTo(x, h * 0.30); ctx.lineTo(x + ((s >> (i + 2)) & 1 ? 4 : -4), -h * 0.10);
+  }
+  ctx.stroke();
+}
+
+/* LA RONCE — BASSE, DENSE, ET ELLE SE DEGAGE AU TIR. Un enchevetrement de
+   traits courts qui se croisent : aucune forme, juste de la matiere emmelee.
+   C est ce qui la separe d une haie, qui aurait une direction. */
+function ronce(o, S) {
+  const w = o.w, h = o.h, s = graine(o);
+  ctx.fillStyle = alpha("#141a10", 0.40);
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = alpha(PROP.vert, 0.30);
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  const n = 40;
+  for (let i = 0; i < n; i++) {
+    const x = -w / 2 + ((s * (i + 7)) % 991) / 991 * w;
+    const y = -h / 2 + ((s * (i + 23)) % 983) / 983 * h;
+    const a = ((s * (i + 3)) % 977) / 977 * Math.PI * 2;
+    const l = 4 + ((s >> (i % 9)) & 3) * 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+  }
+  ctx.stroke();
+  // les EPINES, quelques points clairs : ce n est pas de l herbe.
+  ctx.fillStyle = alpha("#8a9a6a", 0.22);
+  for (let i = 0; i < 10; i++) {
+    const x = -w / 2 + ((s * (i + 31)) % 971) / 971 * w;
+    const y = -h / 2 + ((s * (i + 13)) % 967) / 967 * h;
+    ctx.fillRect(x, y, 1.6, 1.6);
+  }
 }
 
 function conteneur(o, S) {

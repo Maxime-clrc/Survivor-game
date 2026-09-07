@@ -569,15 +569,15 @@ différentes.
     payé. `CACHE_MAX` passe de 5 à **8** : une vue chevauche au plus quatre
     cellules, donc quatre régions.
   - **`verifierMatiere` refuse deux régions d'un thème au même traitement** —
-    leur frontière ne se verrait pas — et un traitement écrit que plus personne
-    ne tire. C'est le premier vérificateur du dépôt qui **compare deux régions
+    leur frontière ne se verrait pas — un traitement écrit que plus personne ne
+    tire, une région sans sol, et un sol pour une région qui n'existe pas. C'est le premier vérificateur du dépôt qui **compare deux régions
     entre elles** au lieu de croiser deux tables.
   - **`verifierDessin` cuit les vingt régions explicitement.** Ses quatre points
     de vue ne voient que les régions que le tirage a posées : un traitement peut
     n'être jamais atteint, et une faute *dans* sa fonction ne lève qu'à l'appel.
     Mesuré : casser `trMineral` (tiré par la seule Nébuleuse/région 3) sort
     `nebuleuse/region 3 : cuisson du sol leve`.
-- **L'AIR (`AIR[theme][loi]`) dit LAQUELLE.** Quatre axes : combien (`dens`, en
+- **L'AIR (`AIR[theme][cle]`) dit LAQUELLE.** Quatre axes : combien (`dens`, en
   facteur de la densité du thème), gros comment (`ech`), quoi (`zones`, un
   sous-ensemble des quartiers de props du thème) et ce qui a marqué le sol
   (`matieres`, une par zone tirée). **Le thème garde son vocabulaire, la région
@@ -586,16 +586,37 @@ différentes.
   reprenant `ECHELLE_LIEU`), et `verifierTraces` **compare** au lieu de faire
   confiance. Il remplace la table `MATIERE`, qui était par thème, et il refuse
   aussi qu'une zone de props ne soit tirée par aucune région.
+  - **PAR CLEF DE RÉGION, JAMAIS PAR RANG**, et c'est une mesure qui l'a dit.
+    `AIR` et `SOL_REGION` étaient des tableaux indexés par rang : insérer une
+    région au milieu d'`OBSTACLES` décalait toutes les suivantes, donc chacune
+    héritait des props **et** du sol de sa voisine. **Six régions sur neuf** à
+    l'Usine et **deux sur cinq** à la Friche, et **aucun vérificateur ne pouvait
+    le voir** — les deux tables restaient complètes et bien formées. C'est le
+    défaut que `loiNom` a payé au lot 5, et il n'avait été corrigé que **là**.
+    `clesDe(theme)` et `loiCle(theme, loi)` (`biomes.js`) sont le point de
+    passage ; les deux vérificateurs croisent maintenant **dans les deux sens** —
+    une région sans entrée repliait en silence, une entrée pour une région morte
+    est un réglage mort.
 - **LE CATALOGUE EST LE GOULOT, PAS LE RANGEMENT.** L'Usine porte **sept
   régions** pour **quatre** quartiers de props : deux d'entre elles partageaient
   **67 %** de leur inventaire, et ajouter des zones *sans ajouter de props*
   n'aurait rien changé — les mêmes objets, redistribués. Usine et Friche passent
   à **six quartiers** avec **dix props neufs** ; le pire recouvrement du dépôt
   tombe de 67 % à **63 %**.
-  - **Un inventaire étroit est une identité, pas un manque.** Trois régions ne
+  - **Un inventaire étroit est une identité, pas un manque.** Quatre régions ne
     tirent qu'**un seul** quartier — la maintenance (entretien), les utilités
-    (énergie), le chantier (ce qu'on a livré et pas monté). C'est ce qui les rend
-    reconnaissables : à deux quartiers elles *contenaient* leurs voisines.
+    (énergie), le traitement (ce qui traite), le chantier (ce qu'on a livré et
+    pas monté). C'est ce qui les rend reconnaissables : à deux quartiers elles
+    *contenaient* leurs voisines.
+  - **UN SEPTIÈME QUARTIER À L'USINE, ET C'EST L'ARITHMÉTIQUE QUI L'A EXIGÉ.**
+    À **neuf** régions pour six quartiers dont **deux tirés seuls**, toute paire
+    contenant l'un des deux *contient* une région entière : le traitement à
+    `[3, 5]` contenait la maintenance (**67 %**). Et les six paires de
+    `{0,1,2,4}` étaient déjà prises par les six autres régions — **redistribuer
+    ne pouvait plus rien**, il fallait des props de plus. Le traitement tire donc
+    un quartier à lui seul (vanne, fût sur rétention, douche de sécurité) : zéro
+    recouvrement, et le pire du dépôt redescend à **63 %** (magasin/expédition).
+    Le bac et la hotte suivent — ils ne sont posés que là.
   - Mesuré deux fois : les utilités à `[5, 3]` **contenaient** la maintenance
     (67 %), et le dégagement à `[1, 5]` **contenait** les utilités (67 %). Un
     sur-ensemble n'est pas une variation.

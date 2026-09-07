@@ -659,9 +659,13 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     livrable** : `BLOCS` + `OBSTACLES` + `TRAMES` (`biomes.js`), `BLOC`
     (`blocs.js`), `QUARTIER` + `AIR` (`props.js`), `SOL_REGION`
     (`material.js`), plus la clé anglaise. Cinq vérificateurs le disent
-    maintenant tout seuls — `4 airs pour 6 lois`, `4 traitements de sol pour
-    6 régions`, `famille sans quartier`, `aucun nom anglais` — et c'est le
-    contrat : un état intermédiaire est un rouge, jamais un repli silencieux.
+    maintenant tout seuls — `usine/minerai : aucun air de region`,
+    `fonderie/minerai : aucun traitement de sol`, `famille sans quartier`,
+    `aucun nom anglais` — et c'est le contrat : un état intermédiaire est un
+    rouge, jamais un repli silencieux. Les deux tables du rendu sont indexées
+    **par clef de région**, jamais par rang (voir `RENDU.md`) : une insertion au
+    milieu d'`OBSTACLES` faisait sinon hériter six régions sur neuf du sol et des
+    props d'une autre, sans qu'aucune table cesse d'être complète.
   - **Le danger commande la table, pas l'inverse.** Trois familles neuves sur
     quatre tombaient sur un danger **en cauchemar** (41 travées, 46 piles,
     37 quais sur cinq graines) : ce mode porte cinq dangers dont une braise qui

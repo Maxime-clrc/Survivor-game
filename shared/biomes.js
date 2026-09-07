@@ -149,7 +149,8 @@ export const B_CHAINE = 0, B_MACHINE = 1, B_POSTE = 2,
              B_LAMINOIR = 40,
              B_MEMBRURE = 41, B_BORDE = 42,
              B_ALVEOLE = 43, B_COURSIVE = 44,
-             B_BAC = 45, B_HOTTE = 46, B_CAGE = 47, B_PORTIQUE = 48;
+             B_BAC = 45, B_HOTTE = 46, B_CAGE = 47, B_PORTIQUE = 48,
+             B_TAS = 49, B_BOSQUET = 50, B_RONCE = 51;
 
 export const BLOCS = [
   { key: "chaine", lieu: "usine" },
@@ -205,6 +206,9 @@ export const BLOCS = [
   { key: "hotte", lieu: "usine" },
   { key: "cage", lieu: "usine" },
   { key: "portique", lieu: "usine" },
+  { key: "tas", lieu: "fonderie" },
+  { key: "bosquet", lieu: "friche" },
+  { key: "ronce", lieu: "friche" },
 ];
 
 export function blocAt(k) { return BLOCS[k] ?? null; }
@@ -628,6 +632,21 @@ const OBSTACLES = {
       { x: 0.20, y: 0.86, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
       { x: 0.80, y: 0.86, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
     ] },
+    /* LE PARC A MINERAI — LA SEULE FORME MOLLE DU DEPOT. Tout le reste du jeu
+       est usine ou casse : des aretes, des chanfreins, des cassures. Un tas de
+       minerai n a ni l un ni l autre — son bord est IRREGULIER et continu, il
+       s est fait tout seul, et ca se lit d une vue entiere.
+       C est aussi l amont du theme : ce qui entre avant qu on le fonde, donc le
+       seul endroit de la Fonderie ou rien ne soit encore chaud. */
+    { cle: "minerai", nom: "le parc a minerai", label: "Le parc à minerai", bords: [BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE], poser: [
+      { x: 0.62, y: 0.16, w: 0.110, h: 0.110, kind: B_TAS },
+      { x: 0.86, y: 0.16, w: 0.110, h: 0.110, kind: B_TAS, min: 1 },
+      { x: 0.24, y: 0.84, w: 0.110, h: 0.110, kind: B_TAS },
+      { x: 0.86, y: 0.80, w: 0.110, h: 0.110, kind: B_TAS, min: 1 },
+      { x: 0.14, y: 0.30, w: 0.070, h: 0.070, kind: B_CUVE },
+      { x: 0.40, y: 0.16, w: 0.070, h: 0.070, kind: B_CUVE, min: 2 },
+      { x: 0.14, y: 0.68, w: 0.070, h: 0.070, kind: B_CUVE, min: 1 },
+    ] },
     /* LE PUITS — une masse centrale massive, le reste degage. Le seul lieu du
        theme ou le centre est interdit : on tourne autour au lieu de le traverser,
        et la horde arrive donc toujours par un cote qu on ne regarde pas. */
@@ -741,11 +760,34 @@ const OBSTACLES = {
       { x: 0.70, y: 0.18, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
       { x: 0.34, y: 0.50, w: 0.020, h: 0.036, kind: B_POTEAU },
       { x: 0.80, y: 0.50, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
-      { x: 0.06, y: 0.94, w: 0.020, h: 0.036, kind: B_POTEAU, min: 2 },
-      { x: 0.50, y: 0.94, w: 0.020, h: 0.036, kind: B_POTEAU },
+      { x: 0.10, y: 0.90, w: 0.020, h: 0.036, kind: B_POTEAU, min: 2 },
+      /* NI 0,94 NI x = 0,50 : a 0,94 le poteau tombe a 76 px de son jumeau
+         miroite de la cellule voisine, et la Friche decale de 40 px par cellule ;
+         a x = 0,50 il est sous la braise, qui balaie 439 a 1161 px entre y = 659
+         et 781. Il sort donc de la colonne centrale. */
+      { x: 0.24, y: 0.88, w: 0.020, h: 0.036, kind: B_POTEAU },
       { x: 0.80, y: 0.80, w: 0.020, h: 0.036, kind: B_POTEAU, min: 1 },
       { x: 0.30, y: 0.36, w: 0.100, h: 0.020, kind: B_BANCHE },
       { x: 0.72, y: 0.36, w: 0.100, h: 0.020, kind: B_BANCHE, min: 1 },
+    ] },
+    /* LE TERRAIN REPRIS — LE VIVANT A GAGNE. La seule region du depot ou ce qui
+       occupe l espace ne soit pas bati : des bosquets a bord organique, des
+       ronces basses, et ce qui reste de mur disparait dessous.
+       LE BOSQUET EST SEMI-OPAQUE, et c est sa regle : on voit des silhouettes a
+       travers sans pouvoir tirer proprement. Les ronces, elles, se degagent au
+       tir — le terrain s ouvre au fil de la manche, comme les etals du marche
+       mais organiquement. */
+    { cle: "repris", nom: "le terrain repris", label: "Le terrain repris", bords: [BORD_ENCOMBRE, BORD_OUVERT, BORD_ENCOMBRE, BORD_OUVERT], poser: [
+      { x: 0.24, y: 0.28, w: 0.120, h: 0.150, kind: B_BOSQUET },
+      { x: 0.82, y: 0.72, w: 0.120, h: 0.150, kind: B_BOSQUET, min: 1 },
+      { x: 0.30, y: 0.50, w: 0.140, h: 0.030, hp: 1, kind: B_RONCE },
+      { x: 0.70, y: 0.34, w: 0.140, h: 0.030, hp: 1, kind: B_RONCE, min: 1 },
+      { x: 0.10, y: 0.18, w: 0.085, h: 0.070, kind: B_RUINE },
+      // 0,20 -> 0,62 : a 0,20 le pan tombait dans la flaque de cauchemar, qui
+      // tient x = 1271 a 1481 entre y = 111 et 321.
+      // ni 0,20 (la flaque de cauchemar) ni 0,62 (le bosquet la traversait sur
+      // 4 x 27 px) : 0,46 est le seul creux de cette colonne.
+      { x: 0.90, y: 0.46, w: 0.045, h: 0.110, kind: B_RUINE, min: 2 },
     ] },
     /* L EFFONDREMENT — des masses de toutes tailles, sans loi apparente. C est
        la variante qui n a pas de regle, et elle en a donc une : le contraste. */
@@ -1172,6 +1214,8 @@ const TRAMES = {
     { type: TR_PEIGNE, kind: B_BASSIN },
     // le laminoir est un RUBAN de masses espacees, pas une rigole continue.
     { type: TR_RUBAN, kind: B_LAMINOIR },
+    // un parc est un CRIBLE de tas : le meme reseau que les cuves, en mou.
+    { type: TR_CRIBLE, kind: B_TAS },
     { type: TR_COURONNE, kind: B_FOUR },
   ],
   friche: [
@@ -1183,6 +1227,8 @@ const TRAMES = {
     { type: TR_NEF, kind: B_MUR },
     // une ossature EST un crible : des appuis reguliers et rien entre eux.
     { type: TR_CRIBLE, kind: B_POTEAU },
+    // le vivant pousse en MASSE, pas en ligne : une couronne de bosquets.
+    { type: TR_COURONNE, kind: B_BOSQUET },
   ],
   nebuleuse: [
     { type: TR_CRIBLE, kind: B_FRAGMENT },
@@ -2064,6 +2110,18 @@ export function loiAt(b, x, y) {
 // COMBIEN DE LOIS UN THEME PORTE-T-IL. Lu par les tables qui en declarent une
 // entree chacune, et par leurs verificateurs.
 export function loisDe(cle) { return (OBSTACLES[cle] ?? []).length; }
+
+/* LA CLEF D UNE REGION, ET C EST PAR LA QUE LES AUTRES TABLES LA DESIGNENT.
+   `AIR` et `SOL_REGION` etaient indexees par RANG : inserer une region au milieu
+   d `OBSTACLES` decalait toutes les suivantes, donc chacune heritait de l air et
+   du sol de sa voisine, SANS QU AUCUN VERIFICATEUR NE PUISSE LE VOIR — les deux
+   tables restaient completes et bien formees.
+   Mesure du degat sur le code LIVRE : six regions sur neuf a l Usine et deux sur
+   cinq a la Friche portaient le sol ET l air d une autre. C est exactement le
+   defaut que `loiNom` a paye au lot 5, et il avait ete corrige la SEULEMENT.
+   Les clefs de toutes les regions d un theme, dans l ordre. */
+export function clesDe(cle) { return (OBSTACLES[cle] ?? []).map(v => v.cle); }
+export function loiCle(cle, loi) { return (OBSTACLES[cle] ?? [])[loi]?.cle ?? ""; }
 
 /* LE NOM AFFICHE D UNE LOI. `nom` est l identifiant de developpement, sans
    accent ; ce qui va au joueur passe par `t()` et porte ses accents. */

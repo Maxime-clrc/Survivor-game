@@ -68,7 +68,11 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   qu'une seule ligne de traduction ne bouge et sans qu'aucun vérificateur ne le
   voie. Un thème qui passe de quatre régions à douze le fera forcément. Chaque
   région porte donc une `cle` (`biome.usine.atelier`), sans accent ni majuscule,
-  unique dans son thème.
+  unique dans son thème. **Et le défaut a été corrigé ici SEULEMENT** : `AIR` et
+  `SOL_REGION` (`props.js`, `material.js`) sont restées indexées par rang
+  jusqu'en 0.43.19, où une insertion au milieu d'`OBSTACLES` a fait hériter six
+  régions sur neuf à l'Usine des props et du sol d'une autre. Une clef n'est pas
+  qu'une affaire de traduction.
 - **UNE TRADUCTION MANQUANTE NE SE SIGNALE JAMAIS.** `t()` replie sur le
   français : c'est le bon comportement en jeu, et c'est exactement ce qui rend un
   oubli invisible. Un vérificateur qui veut croiser une table avec le
