@@ -10252,6 +10252,31 @@
                   0,075 sort quatre regions de la Fonderie, la coulee a 77,6 %
                   et le puits a 65,7 %.
 
+    0.43.23 lot 24 LA MOITIE DES MATIERES DE TRACE ETAIENT INJOIGNABLES. Les neuf
+                  primitives qui manquaient sont ecrites — vingt au total —, et
+                  en les branchant on decouvre que la moitie des matieres deja
+                  ecrites ne sortaient jamais. Deux defauts empiles, aucun
+                  visible : `matieres[mq % n]` indexait par le numero de QUARTIER
+                  du theme et non par la position dans les zones tirees, et
+                  surtout un quartier de PROPS n a aucune raison d etre un
+                  quartier de BATI — 24 regions sur 31 tiraient une zone dont
+                  elles ne posaient aucun bloc, donc leur seconde matiere etait
+                  strictement inatteignable. `verifierTraces` la voyait tiree,
+                  DANS LA TABLE.
+                  LA CORRECTION EST UNE REFONTE : une trace est la consequence de
+                  ce qui est ENCORE LA. `matieres[0]` dit ce que la region fait
+                  au sol partout, `matieres[1]` ce que SON objet lui fait.
+                  `SONDE.kind` porte la famille du bloc le plus proche (deja
+                  calculee et jetee), `LI.sig` vient d `exclusivesDe`, et
+                  `verifierVue` garantit que la signature se voit dans 90 % des
+                  vues — donc la seconde matiere est atteignable partout ou elle
+                  est ecrite. Le nombre de matieres n est plus lie au nombre de
+                  zones : une ou deux, jamais une par zone.
+                  `tracesManquees()` rend le controle mecanique, sur le modele de
+                  `sonsManques()` : on mesure ce qui est VRAIMENT dessine. Deux
+                  primitives sur vingt ne l etaient par aucune des soixante vues,
+                  les deux tables vertes. Vingt sur vingt maintenant.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10260,4 +10285,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.22";
+export const VERSION = "0.43.23";

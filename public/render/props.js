@@ -2,7 +2,7 @@ import { CFG } from "/shared/game_state.js";
 import { PROP, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, gfx } from "../core/state.js";
 import { biomeKey, biomeIndex, biomeSeed, camera, ctx, hazardsDuLieu, loiAt, obstaclesDuLieu, quartierMonde, skin } from "./stage.js";
-import { biomeAt, clesDe, loiCle, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
+import { biomeAt, clesDe, exclusivesDe, loiCle, B_TUNNEL, B_TOURNANTE, B_CONVERTISSEUR, B_TALUS, B_PORTAIL, B_DALLE, B_ROCHE, B_SAS, B_ABRIBUS, B_CARCASSE, B_CHAINE, B_TAS, B_BOSQUET, B_RONCE, B_POUTRE, B_BAC, B_CAGE, B_HOTTE, B_PORTIQUE, B_ALVEOLE, B_BORDE, B_COURSIVE, B_LAMINOIR, B_MEMBRURE, B_CONDUITE, B_AVEUGLE, B_BANCHE, B_BASSIN, B_BRAS, B_CLOISON, B_COQUE, B_CONSOLE, B_ESCALIER, B_ETAL, B_MONOLITHE, B_CONTENEUR, B_CUVE, B_DEBRIS, B_DEVANTURE, B_FOSSE, B_FOUR, B_FRAGMENT, B_MACHINE, B_CLOTURE, B_ETABLI, B_EPAVES, B_GRILLAGE, B_MALAXEUR, B_MOULE, B_POTEAU, B_MUR, B_OUVERTE, B_PALETTIER, B_PILE, B_POSTE, B_PYLONE, B_QUAI, B_REMORQUE, B_TRANSFO, B_RUINE, B_TRAVEE, blocAt, blocsDe } from "/shared/biomes.js";
 
 /* LE DECOR N'EXISTE AUJOURD'HUI QUE S'IL BLOQUE. Ce module ajoute ce qui ne
    bloque pas — et il le fait sans rien garder : la presence, le type, l'angle
@@ -420,7 +420,7 @@ let cle = "";
    Objet de module et non valeur de retour : `refresh` appelle `sonder` une
    centaine de fois par changement de fenetre, et le retour numerique a deux
    sentinelles (-2 pris, -1 loin de tout) qu on ne veut pas transformer. */
-const SONDE = { x: 0, y: 0 };
+const SONDE = { x: 0, y: 0, kind: -1 };
 
 function sonder(x, y, quartiers) {
   let best = -1, bestD = PORTEE_QUARTIER * PORTEE_QUARTIER;
@@ -435,6 +435,9 @@ function sonder(x, y, quartiers) {
     const d = dx * dx + dy * dy;
     if (d < bestD) {
       bestD = d; best = q;
+      // LA FAMILLE, PAS SEULEMENT LE QUARTIER : c est elle qui dit ce qui a
+      // marque le sol. Voir le choix de la matiere dans `refresh`.
+      SONDE.kind = o.kind;
       /* LE POINT LE PLUS PROCHE DU RECTANGLE, JAMAIS SON CENTRE. La distance se
          mesure deja au rectangle — c est ecrit deux lignes plus haut et c est
          juste — mais une bande de trame fait jusqu a 3 680 px : son centre peut
@@ -482,6 +485,7 @@ function refresh() {
       const zt = ZONES[cleTheme] ?? ZONES.usine;
       v = { table: TABLE[cleTheme] ?? TABLE.usine,
             zones: a.zones.map(i => zt[i] ?? zt[0]),
+            sig: (exclusivesDe(cleTheme)[loi]) ?? new Set(),
             quartiers: QUARTIER[cleTheme] ?? {}, matieres: a.matieres ?? null,
             ech: a.ech, dens: (DENSITE_LIEU[cleTheme] ?? 1) * a.dens };
       parLoi.set(loi, v);
@@ -512,7 +516,24 @@ function refresh() {
         const mx = (cx + 0.5) * CELL, my = (cy + 0.5) * CELL;
         const mq = sonder(mx, my, quartiers);
         if (mq >= 0) {
-          const t = matieres[mq % matieres.length];
+          /* LA SECONDE MATIERE APPARTIENT A LA FAMILLE SIGNATURE, PAS A UN
+             QUARTIER DE PROPS — et c est une refonte, pas un reglage.
+
+             `matieres[mq % n]` indexait par le numero de QUARTIER du theme.
+             Deux defauts empiles : le modulo ne retrouvait pas la position dans
+             les zones tirees (usine/chaine tire [0, 2] et posait donc sa
+             premiere matiere sur les deux), et surtout un quartier de PROPS n a
+             aucune raison d etre un quartier de BATI. Mesure : 24 regions sur
+             31 tiraient une zone dont elles ne posaient aucun bloc, donc leur
+             seconde matiere etait INJOIGNABLE. `verifierTraces` la voyait
+             tiree — dans la TABLE.
+
+             Une trace est la consequence de quelque chose qui est ENCORE LA :
+             `matieres[0]` dit ce que la region fait au sol partout, et
+             `matieres[1]` ce que SON objet lui fait. La famille exclusive se
+             voit dans au moins 90 % des vues de sa region (`verifierVue`), donc
+             la seconde matiere est atteignable partout ou elle est ecrite. */
+          const t = (LI.sig.has(SONDE.kind) && matieres[1]) || matieres[0];
           if (t) {
             traces.push({ t, cx, cy,
               x: (cx + 0.15 + h2(cx, cy, s + 201) * 0.70) * CELL,
@@ -1853,7 +1874,10 @@ function gaine(p, ox, oy) {
 const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
       TRACE_CENDRES = 4, TRACE_RAYURES = 5, TRACE_RUISSELLEMENT = 6,
       TRACE_CORROSION = 7, TRACE_FISSURES = 8, TRACE_DECHETS = 9,
-      TRACE_AUREOLE = 10, TRACE_COULEE = 11;
+      TRACE_AUREOLE = 10, TRACE_COULEE = 11,
+      TRACE_EMPREINTE = 12, TRACE_SENTIER = 13, TRACE_ROUSSI = 14,
+      TRACE_ECLATS = 15, TRACE_INTERSTICE = 16, TRACE_MARQUAGE = 17,
+      TRACE_GIVRE = 18, TRACE_TAG = 19, TRACE_REFLET = 20;
 
 /* UNE TRACE N EST PAS UN MOTIF, C EST LA CONSEQUENCE DE QUELQUE CHOSE QUI EST
    ENCORE LA. C est ce qui la separe d une texture, et le depot ne le disait pas :
@@ -1880,7 +1904,10 @@ const TRACE_ROULAGE = 1, TRACE_SOUILLURE = 2, TRACE_POUSSIERE = 3,
 const TRACES_CONNUES = new Set([TRACE_ROULAGE, TRACE_SOUILLURE, TRACE_POUSSIERE,
                                 TRACE_CENDRES, TRACE_RAYURES, TRACE_RUISSELLEMENT,
                                 TRACE_CORROSION, TRACE_FISSURES, TRACE_DECHETS,
-                                TRACE_AUREOLE, TRACE_COULEE]);
+                                TRACE_AUREOLE, TRACE_COULEE,
+                                TRACE_EMPREINTE, TRACE_SENTIER, TRACE_ROUSSI,
+                                TRACE_ECLATS, TRACE_INTERSTICE, TRACE_MARQUAGE,
+                                TRACE_GIVRE, TRACE_TAG, TRACE_REFLET]);
 
 /* L AIR D UNE REGION — LA SECONDE MOITIE DE CE QUI FAIT UN BIOME.
 
@@ -1925,7 +1952,9 @@ const AIR = {
     utilites: { dens: 0.76, ech: [0.74, 0.62], zones: [5], matieres: [TRACE_AUREOLE] },
     // une respiration DANS une halle de production : ce qu on y fabrique et ce
     // qu on y range, jamais l energie — a [1, 5] il CONTENAIT les utilites.
-    degagement: { dens: 0.58, ech: [0.88, 0.86], zones: [1, 0], matieres: [TRACE_POUSSIERE, TRACE_FISSURES] },
+    // un degagement a SERVI et ne sert plus : le marquage y est efface, pas
+    // fissure — une fissure dit que le sol a bouge, pas qu on a cesse.
+    degagement: { dens: 0.58, ech: [0.88, 0.86], zones: [1, 0], matieres: [TRACE_POUSSIERE, TRACE_MARQUAGE] },
     // le magasin STOCKE et MANUTENTIONNE : gerbeur, transpalette, cale. Les
     // rayures sont les griffes de fourche sur le beton d une allee de rack.
     magasin: { dens: 0.90, ech: [0.66, 0.54], zones: [1, 4], matieres: [TRACE_ROULAGE, TRACE_RAYURES] },
@@ -1938,11 +1967,13 @@ const AIR = {
     expedition: { dens: 0.70, ech: [0.80, 0.70], zones: [4, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
   },
   fonderie: {
-    coulee: { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
+    // du metal chaud a ete POSE ici puis retire : un bord franc, pas une fuite.
+    coulee: { dens: 1.00, ech: [0.80, 0.70], zones: [0, 1], matieres: [TRACE_SOUILLURE, TRACE_ROUSSI] },
     // le sable COULE des malaxeurs, et la coulee pointe vers celui qui l a lache.
     sablerie: { dens: 1.18, ech: [0.74, 0.58], zones: [1, 2], matieres: [TRACE_COULEE, TRACE_CORROSION] },
     // le bassin laisse un depot de sels en s evaporant : une aureole, pas une tache.
-    refroidissement: { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_CORROSION] },
+    // le seul sol MOUILLE hors du Secteur, et c est la definition du lieu.
+    refroidissement: { dens: 0.78, ech: [0.90, 0.76], zones: [2, 3], matieres: [TRACE_AUREOLE, TRACE_REFLET] },
     // le laminoir tire ce qui COULE et ce qui en SORT : le seul de son theme.
     laminoir: { dens: 1.05, ech: [0.78, 0.64], zones: [0, 2], matieres: [TRACE_RAYURES, TRACE_SOUILLURE] },
     // le parc a minerai ne tire QUE ce qu on jette et ce qui sert a manier.
@@ -1950,15 +1981,20 @@ const AIR = {
     puits: { dens: 0.66, ech: [0.98, 0.92], zones: [0, 3], matieres: [TRACE_CENDRES, TRACE_RAYURES] },
   },
   friche: {
-    champ: { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_POUSSIERE, null] },
+    // ce qui repousse suit les JOINTS du sol : sans les lignes, c est de la
+    // mousse, et la mousse ne dit pas qu un sol a ete construit puis laisse.
+    champ: { dens: 1.00, ech: [0.66, 0.92], zones: [0, 1], matieres: [TRACE_INTERSTICE, null] },
     mur: { dens: 1.12, ech: [0.58, 0.78], zones: [2, 1], matieres: [TRACE_POUSSIERE, TRACE_SOUILLURE] },
     // la casse a sa MECANIQUE : pneus et moteurs deposes, que rien d autre ne
     // tire, et l huile coule des piles d epaves, toujours vers le bas de la pile.
-    casse: { dens: 0.70, ech: [0.82, 1.08], zones: [4, 1], matieres: [TRACE_COULEE, TRACE_SOUILLURE] },
+    // ce qu on demonte CASSE : des eclats a aretes, jamais du grain.
+    casse: { dens: 0.70, ech: [0.82, 1.08], zones: [4, 1], matieres: [TRACE_COULEE, TRACE_ECLATS] },
     // un chantier n a que ce qu on y a livre et pas encore monte.
-    chantier: { dens: 0.64, ech: [0.72, 0.90], zones: [5], matieres: [TRACE_FISSURES] },
+    // la seule trace du depot qui parle d un CORPS : on y travaille encore.
+    chantier: { dens: 0.64, ech: [0.72, 0.90], zones: [5], matieres: [TRACE_EMPREINTE] },
     // le terrain repris ne pose QUE de la vegetation : c est tout son propos.
-    repris: { dens: 1.24, ech: [0.60, 1.00], zones: [0], matieres: [TRACE_DECHETS] },
+    // on passe TOUJOURS par la : c est ce qui separe un sentier d un passage.
+    repris: { dens: 1.24, ech: [0.60, 1.00], zones: [0], matieres: [TRACE_SENTIER] },
     // ce qui FERMAIT et le peu qui reste ALLUME : deux zones, pas trois. Trois
     // zones sur quatre rendaient l union du theme entier.
     effondrement: { dens: 1.40, ech: [0.52, 1.14], zones: [2, 3], matieres: [TRACE_SOUILLURE, TRACE_CENDRES] },
@@ -1966,7 +2002,9 @@ const AIR = {
   nebuleuse: {
     // la derive tire l EPAVE et ce qui a gele dessus, jamais l amarrage : a
     // [0,3] elle partageait 71 % de ses props avec le dock.
-    derive: { dens: 1.00, ech: [0.90, 1.05], zones: [0, 2], matieres: [TRACE_RAYURES, null] },
+    // il fait froid ICI et pas ailleurs : un gradient depuis l epave, pas un
+    // semis — c est ce qui le distingue de la poussiere.
+    derive: { dens: 1.00, ech: [0.90, 1.05], zones: [0, 2], matieres: [TRACE_GIVRE, null] },
     // un dock ne pose QUE ce a quoi on s amarre : balise, antenne, rail, ancrage.
     dock: { dens: 1.10, ech: [0.66, 0.70], zones: [3], matieres: [TRACE_FISSURES] },
     // la coursive tire ce qui FLOTTE et ce a quoi on s AMARRE, jamais la
@@ -1981,7 +2019,9 @@ const AIR = {
     rue: { dens: 1.00, ech: [0.60, 0.52], zones: [0, 1], matieres: [TRACE_RUISSELLEMENT, TRACE_ROULAGE] },
     // la chaussee et ce qui la DESSERT par derriere : une ruelle n est pas une
     // rue vue de plus pres, elle a son propre inventaire.
-    ruelle: { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_SOUILLURE] },
+    // la seule marque VOLONTAIRE du depot, et la seule couleur saturee : on
+    // tague un mur aveugle, jamais une vitrine.
+    ruelle: { dens: 0.84, ech: [0.70, 0.62], zones: [1, 2], matieres: [TRACE_RUISSELLEMENT, TRACE_TAG] },
     marche: { dens: 1.38, ech: [0.48, 0.40], zones: [3, 2], matieres: [TRACE_DECHETS, TRACE_SOUILLURE] },
     // les capsules : la chaussee qu on habite et le coin ou l on se gare.
     capsules: { dens: 1.20, ech: [0.52, 0.46], zones: [1, 3], matieres: [TRACE_DECHETS, TRACE_RUISSELLEMENT] },
@@ -2085,8 +2125,13 @@ export function verifierTraces() {
       for (const z of a.zones ?? []) {
         if (!(z >= 0 && z < zones.length)) soucis.push(`${cle}/${c} : zone ${z} hors des ${zones.length}`);
       }
-      if ((a.matieres ?? []).length !== (a.zones ?? []).length) {
-        soucis.push(`${cle}/${c} : ${(a.matieres ?? []).length} matieres pour ${(a.zones ?? []).length} zones`);
+      /* UNE OU DEUX MATIERES, ET PLUS UNE PAR ZONE. La premiere est celle de la
+         region, la seconde celle de sa famille signature — le nombre de zones de
+         PROPS n a rien a voir avec ce qui marque le sol, et l aligner dessus
+         rendait la moitie des secondes matieres injoignables. */
+      const nm = (a.matieres ?? []).length;
+      if (nm < 1 || nm > 2) {
+        soucis.push(`${cle}/${c} : ${nm} matieres — une pour la region, au plus une pour sa signature`);
       }
       const vives = new Set((a.matieres ?? []).filter(m => m !== null));
       if (vives.size < 1) soucis.push(`${cle}/${c} : aucune matiere vive`);
@@ -2668,7 +2713,242 @@ function plot(p, ox, oy) {
   ctx.beginPath(); ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2); ctx.fill();
 }
 
+/* L EMPREINTE — QUELQU UN EST PASSE, ET IL ALLAIT QUELQUE PART. C est la seule
+   trace du depot qui parle d un CORPS et non d une machine : elle alterne
+   gauche-droite autour de son axe, et c est l alternance qui la fait lire.
+   Elle s efface en s eloignant de sa source : on ne sait pas d ou il venait. */
+function empreinte(cx, cy, x, y, s, ax, ay) {
+  const dx = x - ax, dy = y - ay;
+  const l = Math.hypot(dx, dy);
+  if (l < 6) return;
+  const a = Math.atan2(dy, dx);
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(a);
+  const n = 5 + ((h2(cx, cy, s + 281) * 3) | 0);
+  const pas = 13 + h2(cx, cy, s + 282) * 5;
+  for (let i = 0; i < n; i++) {
+    const cote = (i & 1) ? 4.5 : -4.5;
+    ctx.fillStyle = alpha("#000000", 0.16 * (1 - i / n));
+    ctx.save();
+    ctx.translate(8 + i * pas, cote + (h2(cx * 7 + i, cy, s + 283) - 0.5) * 3);
+    ctx.rotate((h2(cx * 5 + i, cy, s + 284) - 0.5) * 0.5);
+    ctx.fillRect(-3.5, -2, 7, 4);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/* LE SENTIER — ON PASSE TOUJOURS PAR LA. L empreinte dit un passage, le sentier
+   dit une HABITUDE : une bande continue ou la matiere du sol a disparu, aux
+   bords irreguliers parce que personne ne l a tracee. */
+function sentier(cx, cy, x, y, s, ax, ay) {
+  const dx = x - ax, dy = y - ay;
+  const l = Math.hypot(dx, dy);
+  if (l < 10) return;
+  const a = Math.atan2(dy, dx);
+  const L = Math.min(l + 40, 130), w = 9 + h2(cx, cy, s + 291) * 7;
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(a);
+  ctx.beginPath();
+  const N = 6;
+  for (let i = 0; i <= N; i++) {
+    const u = (i / N) * L;
+    ctx.lineTo(u, -w / 2 * (0.6 + h2(cx * 11 + i, cy, s + 292) * 0.8));
+  }
+  for (let i = N; i >= 0; i--) {
+    const u = (i / N) * L;
+    ctx.lineTo(u, w / 2 * (0.6 + h2(cx * 13 + i, cy, s + 293) * 0.8));
+  }
+  ctx.closePath();
+  ctx.fillStyle = alpha("#c8bfa4", 0.07);
+  ctx.fill();
+  ctx.restore();
+}
+
+/* LE ROUSSI — QUELQUE CHOSE DE CHAUD A ETE POSE LA, ET RETIRE. Un noyau presque
+   noir, une frange brune, et RIEN au-dela : c est le bord franc qui dit le
+   contact, une tache degradee dirait une fuite. */
+function roussi(cx, cy, x, y, s, ax, ay) {
+  const dx = ax - x, dy = ay - y;
+  if (Math.hypot(dx, dy) < 1) return;
+  const r = 13 + h2(cx, cy, s + 301) * 12;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.atan2(dy, dx));
+  for (const [k, c, al] of [[1.0, "#3a2418", 0.16], [0.62, "#120b07", 0.20]]) {
+    ctx.beginPath();
+    for (let i = 0; i <= 9; i++) {
+      const th = (i / 9) * Math.PI * 2;
+      const w = 0.78 + h2(cx * 19 + i, cy, s + 302) * 0.44;
+      const px = Math.cos(th) * r * 1.2 * w * k, py = Math.sin(th) * r * 0.9 * w * k;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = alpha(c, al);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* LES ECLATS — CA A CASSE, ET CA ACCROCHE LA LUMIERE. Des triangles, jamais des
+   points : un eclat a des aretes, et c est ce qui le separe du grain de
+   poussiere. Ils sont CLAIRS sur un sol sombre, donc ils se voient de loin. */
+function eclats(cx, cy, x, y, s) {
+  const n = 9 + ((h2(cx, cy, s + 311) * 7) | 0);
+  for (let i = 0; i < n; i++) {
+    const px = x + (h2(cx * 7 + i, cy, s + 312) - 0.5) * 78;
+    const py = y + (h2(cx, cy * 7 + i, s + 313) - 0.5) * 52;
+    const r = 1.6 + h2(cx * 3 + i, cy, s + 314) * 2.4;
+    const a = h2(cx * 5 + i, cy, s + 315) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(px + Math.cos(a) * r, py + Math.sin(a) * r);
+    ctx.lineTo(px + Math.cos(a + 2.1) * r, py + Math.sin(a + 2.1) * r);
+    ctx.lineTo(px + Math.cos(a + 4.2) * r * 0.6, py + Math.sin(a + 4.2) * r * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = alpha("#cfe2ea", 0.10 + h2(cx * 11 + i, cy, s + 316) * 0.12);
+    ctx.fill();
+  }
+}
+
+/* L INTERSTICE VEGETAL — RIEN NE L EMPECHE PLUS DE POUSSER. Il ne pousse pas
+   n importe ou : il suit des LIGNES, celles des joints du sol. Deux droites
+   presque paralleles et des touffes dessus — sans les lignes ce serait de la
+   mousse, et la mousse ne dit pas qu un sol a ete construit puis laisse. */
+function interstice(cx, cy, x, y, s) {
+  const a = (h2(cx, cy, s + 321) < 0.5 ? 0 : Math.PI / 2)
+    + (h2(cx, cy, s + 322) - 0.5) * 0.18;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  for (let j = 0; j < 2; j++) {
+    const off = (j - 0.5) * (26 + h2(cx, cy, s + 323) * 26);
+    for (let i = 0; i < 9; i++) {
+      const u = -44 + i * 11 + h2(cx * 5 + i, cy + j, s + 324) * 5;
+      const t = 1.6 + h2(cx * 7 + i, cy + j, s + 325) * 2.6;
+      ctx.fillStyle = alpha(PROP.vert, 0.14 + h2(cx * 3 + i, cy + j, s + 326) * 0.12);
+      ctx.fillRect(u, off - t / 2, 3.2, t);
+    }
+  }
+  ctx.restore();
+}
+
+/* LE MARQUAGE EFFACE — CA A SERVI, ET CA NE SERT PLUS. La bande est droite et
+   large, donc elle a ete PEINTE ; elle est interrompue par bouts, donc on a
+   roule dessus pendant des annees. C est la seule trace du depot qui montre une
+   intention humaine ABANDONNEE plutot qu un accident. */
+function marquageEfface(cx, cy, x, y, s) {
+  const a = (h2(cx, cy, s + 331) < 0.5 ? 0 : Math.PI / 2)
+    + (h2(cx, cy, s + 332) - 0.5) * 0.1;
+  const w = 6 + h2(cx, cy, s + 333) * 4;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  let u = -58;
+  while (u < 58) {
+    const seg = 8 + h2(cx * 7 + u, cy, s + 334) * 22;
+    if (h2(cx * 3 + u, cy, s + 335) > 0.38) {
+      ctx.fillStyle = alpha(PROP.peint, 0.07 + h2(cx * 5 + u, cy, s + 336) * 0.09);
+      ctx.fillRect(u, -w / 2, seg, w);
+    }
+    u += seg + 4 + h2(cx * 11 + u, cy, s + 337) * 10;
+  }
+  ctx.restore();
+}
+
+/* LE GIVRE — IL FAIT FROID ICI, ET PAS AILLEURS. Il s accumule DU COTE de sa
+   source et s eteint de l autre : c est un gradient, pas un semis, et c est ce
+   qui le distingue de la poussiere. Aiguilles fines, jamais de tache. */
+function givreSol(cx, cy, x, y, s, ax, ay) {
+  const dx = x - ax, dy = y - ay;
+  const l = Math.hypot(dx, dy);
+  if (l < 1) return;
+  const a = Math.atan2(dy, dx);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  ctx.strokeStyle = alpha(PROP.givre, 0.16);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 22; i++) {
+    const u = -30 + h2(cx * 7 + i, cy, s + 341) * 60;
+    const v = (h2(cx, cy * 7 + i, s + 342) - 0.5) * 44;
+    // l aiguille est d autant plus longue qu on est PRES de la source.
+    const k = Math.max(0, 1 - (u + 30) / 60);
+    const ln = 2 + k * 7;
+    const th = h2(cx * 3 + i, cy, s + 343) * Math.PI;
+    ctx.moveTo(u - Math.cos(th) * ln, v - Math.sin(th) * ln);
+    ctx.lineTo(u + Math.cos(th) * ln, v + Math.sin(th) * ln);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* LE TAG — QUELQU UN S EST APPROPRIE LE LIEU. La seule marque du depot qui soit
+   VOLONTAIRE, et la seule qui porte une couleur saturee. Elle se pose contre sa
+   source parce qu on tague un MUR, pas un sol : le trace est un geste continu,
+   donc des courbes, et il deborde de son propre contour. */
+function tag(cx, cy, x, y, s, ax, ay) {
+  const dx = ax - x, dy = ay - y;
+  if (Math.hypot(dx, dy) < 1) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(Math.atan2(dy, dx) + Math.PI / 2);
+  const teinte = h2(cx, cy, s + 351) < 0.5 ? "#c8407a" : "#3fb6c8";
+  ctx.strokeStyle = alpha(teinte, 0.20);
+  ctx.lineWidth = 3 + h2(cx, cy, s + 352) * 2;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  let px = -18, py = 0;
+  ctx.moveTo(px, py);
+  for (let i = 0; i < 4; i++) {
+    const nx = px + 9 + h2(cx * 7 + i, cy, s + 353) * 6;
+    const ny = (h2(cx, cy * 5 + i, s + 354) - 0.5) * 18;
+    ctx.quadraticCurveTo(px + 5, py + (ny - py) * 1.6, nx, ny);
+    px = nx; py = ny;
+  }
+  ctx.stroke();
+  ctx.lineCap = "butt";
+  ctx.restore();
+}
+
+/* LE FILM REFLECHISSANT — C EST MOUILLE. Il ne dessine pas une flaque : il pose
+   des bandes CLAIRES et molles, comme un ciel bas qui se reflete. Il n a donc ni
+   contour ni bord, et c est ce qui le separe du ruissellement, qui coule. */
+function filmReflet(cx, cy, x, y, s) {
+  const a = h2(cx, cy, s + 361) * Math.PI;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  for (let i = 0; i < 4; i++) {
+    const off = (i - 1.5) * (9 + h2(cx * 5 + i, cy, s + 362) * 7);
+    const L = 24 + h2(cx * 7 + i, cy, s + 363) * 46;
+    const g = ctx.createLinearGradient(-L / 2, 0, L / 2, 0);
+    g.addColorStop(0, alpha("#b9cede", 0));
+    g.addColorStop(0.5, alpha("#b9cede", 0.09 + h2(cx * 3 + i, cy, s + 364) * 0.07));
+    g.addColorStop(1, alpha("#b9cede", 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(-L / 2, off, L, 2 + h2(cx * 11 + i, cy, s + 365) * 3);
+  }
+  ctx.restore();
+}
+
+/* CE QUI A VRAIMENT ETE DESSINE, ET PAS CE QUE LA TABLE DECLARE.
+   `verifierTraces` croise `AIR` et `TRACES_CONNUES` : il repond « toutes les
+   primitives sont ecrites quelque part », jamais « toutes sortent ». Mesure a
+   l ouverture du lot 24 : deux primitives sur vingt n etaient JAMAIS dessinees,
+   et les deux tables etaient vertes.
+   Meme modele que `sonsManques()` — on MESURE ce qui est passe au lieu de tenir
+   une seconde liste qui pourrirait. Un `add` sur un Set de vingt entiers, une
+   fois par trace posee : trois microsecondes par image. */
+const tracesVues = new Set();
+export function tracesManquees() {
+  return [...TRACES_CONNUES].filter(t => !tracesVues.has(t));
+}
+
 function tracer(t, cx, cy, x, y, s, ax, ay) {
+  tracesVues.add(t);
   switch (t) {
     case TRACE_ROULAGE:      return roulage(cx, cy, x, y, s);
     case TRACE_SOUILLURE:    return souillure(cx, cy, x, y, s);
@@ -2681,6 +2961,15 @@ function tracer(t, cx, cy, x, y, s, ax, ay) {
     case TRACE_DECHETS:      return dechets(cx, cy, x, y, s);
     case TRACE_AUREOLE:      return aureole(cx, cy, x, y, s, ax, ay);
     case TRACE_COULEE:       return coulee(cx, cy, x, y, s, ax, ay);
+    case TRACE_EMPREINTE:    return empreinte(cx, cy, x, y, s, ax, ay);
+    case TRACE_SENTIER:      return sentier(cx, cy, x, y, s, ax, ay);
+    case TRACE_ROUSSI:       return roussi(cx, cy, x, y, s, ax, ay);
+    case TRACE_ECLATS:       return eclats(cx, cy, x, y, s);
+    case TRACE_INTERSTICE:   return interstice(cx, cy, x, y, s);
+    case TRACE_MARQUAGE:     return marquageEfface(cx, cy, x, y, s);
+    case TRACE_GIVRE:        return givreSol(cx, cy, x, y, s, ax, ay);
+    case TRACE_TAG:          return tag(cx, cy, x, y, s, ax, ay);
+    case TRACE_REFLET:       return filmReflet(cx, cy, x, y, s);
   }
 }
 

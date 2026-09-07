@@ -153,6 +153,20 @@ export async function verifierDessin(graines = [1, 7, 99]) {
     }
   }
 
+  /* ET LES VINGT PRIMITIVES DE TRACE SORTENT VRAIMENT. La boucle ci-dessus les
+     traverse toutes si les tables sont justes ; quand elles ne le sont pas, rien
+     ne leve — une trace declaree mais injoignable ne fait que ne pas exister.
+     C est ce qui est arrive a deux d entre elles au lot 24. */
+  const tr = mod.props?.tracesManquees;
+  if (typeof tr !== "function") soucis.push("props.tracesManquees n est pas exporte");
+  else {
+    const manque = tr();
+    if (manque.length) {
+      soucis.push(`trace(s) ${manque.join(", ")} : ecrite(s) dans la table et`
+        + " dessinee(s) par aucune des soixante vues");
+    }
+  }
+
   // une phrase par defaut, pas une par appel : la meme faute sort 216 fois.
   return [...new Set(soucis)];
 }

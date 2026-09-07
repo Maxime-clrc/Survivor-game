@@ -2471,7 +2471,12 @@ export function verifierSignature() {
 const VUE_MIN = 0.90;
 const VUE_GRAINES = [1, 7, 42, 99, 1234];
 
-function exclusives(cle) {
+/* LES FAMILLES QU UNE REGION EST SEULE A POSER, une par region et dans l ordre
+   des lois. Exportee parce que le SEMIS en a besoin : ce qui a marque le sol
+   d une region est ce que cette region a d unique, et sans cette liste la
+   matiere de trace ne pouvait s accrocher qu a un quartier de props — un
+   decoupage qui n a rien a voir avec le bati. */
+export function exclusivesDe(cle) {
   const vs = OBSTACLES[cle] ?? [];
   const fam = vs.map(v => familles(v));
   return fam.map((f, i) => {
@@ -2486,7 +2491,7 @@ export function verifierVue(arenaW = 14400, arenaH = 8100, viewW = 1600, viewH =
   for (let bi = 0; bi < BIOMES.length; bi++) {
     const cle = BIOMES[bi].key;
     const vs = OBSTACLES[cle] ?? [];
-    const excl = exclusives(cle);
+    const excl = exclusivesDe(cle);
     const vu = vs.map(() => [0, 0]);
     for (const seed of VUE_GRAINES) {
       for (const diff of [1, 2]) {

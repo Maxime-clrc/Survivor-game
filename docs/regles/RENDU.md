@@ -636,6 +636,24 @@ différentes.
   - **L'auréole** entoure sa source (ce qui a débordé puis séché), **la coulée**
     en part et maigrit (ce qui s'est écoulé) — c'est la seule marque au sol du
     dépôt qui porte un **sens**.
+  - **VINGT PRIMITIVES, ET LA SECONDE MATIÈRE APPARTIENT À LA FAMILLE
+    SIGNATURE.** `matieres[0]` dit ce que la région fait au sol **partout**,
+    `matieres[1]` ce que **son** objet lui fait — `LI.sig` vient
+    d'`exclusivesDe()`, et `SONDE.kind` porte la famille du bloc le plus proche.
+    L'indexation précédente prenait le **quartier de props** (`matieres[mq % n]`),
+    ce qui empilait deux défauts : le modulo ne retrouvait pas la position dans
+    les zones tirées, et surtout **un quartier de props n'a aucune raison d'être
+    un quartier de bâti**. Mesuré : **24 régions sur 31** tiraient une zone dont
+    elles ne posaient aucun bloc, donc leur seconde matière était
+    **injoignable** — et `verifierTraces` la voyait tirée, *dans la table*.
+  - **`tracesManquees()` mesure ce qui est VRAIMENT dessiné**, comme
+    `sonsManques()` pour les sons. `verifierTraces` croise deux tables et répond
+    « toutes les primitives sont écrites quelque part », jamais « toutes
+    sortent » : **deux sur vingt** n'étaient dessinées par aucune des soixante
+    vues de `verifierDessin`, les deux tables vertes. Un `add` sur un Set de
+    vingt entiers par trace posée, trois microsecondes par image.
+  - Le nombre de matières n'est plus lié au nombre de zones : **une ou deux**,
+    jamais « une par zone ». Aligner les deux est ce qui avait créé le défaut.
   - **Pas de table de classe.** Une première version en portait une — libre,
     ancrée, orientée — dont le seul lecteur était un contrôle de complétude **sur
     elle-même**. Ce qu'elle disait est déjà porté par la signature : une

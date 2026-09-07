@@ -8,6 +8,54 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La moitié des matières de trace étaient injoignables (0.43.23)
+
+Les neuf primitives de trace qui manquaient sont écrites — **vingt au total** :
+`empreinte`, `sentier`, `roussi`, `eclats`, `interstice`, `marquage efface`,
+`givre`, `tag`, `film reflechissant`.
+
+**Et en les branchant, on découvre que la moitié des matières déjà écrites ne
+sortaient jamais.**
+
+| mesure | avant | après |
+|---|---:|---:|
+| primitives dessinées par les 60 vues de `verifierDessin` | **18 / 20** | **20 / 20** |
+| régions tirant une zone dont elles ne posent aucun bloc | **24 / 31** | sans objet |
+
+Deux défauts empilés, aucun visible :
+
+1. **`matieres[mq % n]` indexait par le numéro de quartier du thème**, pas par la
+   position dans les zones tirées. `usine/chaine` tire `[0, 2]` et posait donc sa
+   **première** matière sur les deux.
+2. **Un quartier de PROPS n'a aucune raison d'être un quartier de BÂTI.**
+   `secteur/ruelle` tire `[1, 2]` dans un thème où **aucun** bloc n'est en
+   quartier 1 : sa seconde matière — le tag — était strictement inatteignable.
+   Et c'était le cas de **24 régions sur 31**.
+
+`verifierTraces` voyait pourtant chaque primitive « tirée » — **dans la table**.
+
+**La correction est une refonte, pas un réglage.** Une trace est la conséquence
+de quelque chose qui est **encore là** :
+
+- `matieres[0]` — ce que la région fait au sol **partout** ;
+- `matieres[1]` — ce que **son objet** lui fait, et rien d'autre.
+
+`SONDE.kind` porte désormais la famille du bloc le plus proche (elle était déjà
+calculée et jetée, comme sa position l'était avant 0.43.14), et `LI.sig` vient
+d'`exclusivesDe()`. La seconde matière est donc atteignable **partout où elle est
+écrite** : `verifierVue` garantit que la famille signature se voit dans au moins
+90 % des vues de sa région.
+
+Le nombre de matières n'est plus lié au nombre de zones — **une ou deux**,
+jamais « une par zone ». C'est cet alignement qui avait créé le défaut.
+
+**`tracesManquees()` rend le contrôle mécanique**, sur le modèle de
+`sonsManques()` : on mesure ce qui est **vraiment dessiné** au lieu de tenir une
+seconde liste. Coût : un `add` sur un Set de vingt entiers par trace posée, trois
+microsecondes par image. Preuve qu'il mord : remplacer le tag de la ruelle par
+une cendre sort `trace(s) 19 : ecrite(s) dans la table et dessinee(s) par aucune
+des soixante vues`.
+
 ### Posséder un objet n'est pas le montrer (0.43.22)
 
 `verifierSignature` dit qu'une région **possède** une famille bâtie à elle.
