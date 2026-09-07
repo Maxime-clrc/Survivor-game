@@ -220,6 +220,32 @@ exactement la moyenne pondérée, et `loisEnVue` met la région de la caméra en
 **Une seule région en vue ne paie rien** : deux `fillRect`, le chemin d'avant au
 pixel — c'est le cas au centre d'un biome, donc le plus fréquent.
 
+Combien de couches `drawFloor` doit peindre, sur 30 cartes et toutes les positions
+de caméra au pas de 150 px (2,7 millions de vues) :
+
+| couches | part des vues |
+|---:|---:|
+| 1 (chemin d'avant) | 35,7 % |
+| 2 | 48,1 % |
+| 3 | 15,7 % |
+| 4 | 0,6 % |
+
+Quatre est le maximum atteignable et il est **structurel** : le noyau est le 2 × 2
+des centres de cellule.
+
+#### Une jonction de trois régions n'est pas un cas particulier
+
+C'est le reproche exact du rapport — trois transitions indépendantes fabriqueraient
+une **quatrième** couture au centre. Le voisinage 2 × 2 rend jusqu'à quatre poids,
+donc la jonction tombe du même calcul. Mesuré au coin où les cellules (3,3) = 8,
+(4,3) = 1, (3,4) = 6 et (4,4) = 6 se rejoignent (usine, graine 7) :
+
+| point | poids |
+|---|---|
+| (6400, 3600) | loi 6 **42 %**, loi 1 **35 %**, loi 8 **23 %** |
+| (6400, 3500) | loi 1 69 %, loi 8 27 %, loi 6 3 % |
+| (6300, 3700) | loi 6 88 %, loi 8 8 %, loi 1 4 % |
+
 Coût mesuré, Chrome headless, caméra **posée sur la frontière** (usine, graine 7,
 carrefour ↔ traitement), 180 images :
 
