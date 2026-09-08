@@ -8,6 +8,57 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### Un tronçon de trame est borné par le détour qu'il impose (0.43.42)
+
+`bande()` tirait son nombre de tronçons à **l'arrondi** : à `L / TRAME_PAS` = 1,15
+il rendait 1, donc `max(2, n)` = 2 et des tronçons de **3 680 px** — 184 m de mur
+dont la seule brèche est au milieu, soit **92 m à longer avec la horde au dos**,
+sept secondes à `PLAYER_SPEED` (260 px/s).
+
+Relevé sur 5 graines × 3 modes, en ne gardant que ce qui est long (axe long
+≥ 600 px, épaisseur ≤ 160 px) — c'est-à-dire la trame et rien d'autre : aucun bloc
+de cellule ne dépasse 288 px.
+
+| longueur de tronçon | médiane | p90 | max | ≥ 2 000 px |
+|---|---:|---:|---:|---:|
+| usine | 1 400 → 1 307 | 2 880 → **1 333** | 3 680 → **1 632** | 81 → **0** |
+| fonderie | 1 440 → 1 307 | 2 907 → **1 333** | 3 680 → **1 540** | 66 → **0** |
+| friche | 1 080 → 1 167 | 2 880 → **1 328** | 3 680 → **1 333** | 39 → **0** |
+| nébuleuse | 1 120 → 1 320 | 2 880 → **1 333** | 3 680 → **1 333** | 71 → **0** |
+| secteur | 768 → 1 200 | 2 907 → **1 333** | 3 680 → **1 540** | 90 → **0** |
+
+`ceil` borne le tronçon au pas — `seg ≤ L / ceil(L / PAS) ≤ PAS` — et le pas,
+ramené de 3 200 à **1 800**, borne le détour à une demi-vue. Ce qui protège la
+région ne bouge pas : au moins deux tronçons, donc au moins une brèche.
+
+**Le bâti ne maigrit pas.** Surface d'arène, moyenne de 5 graines × 3 modes :
+
+| | bâti total | dont trame |
+|---|---:|---:|
+| usine | 5,00 → 4,88 % | 1,82 → 1,70 % |
+| fonderie | 6,11 → 5,95 % | 1,87 → 1,70 % |
+| friche | 4,55 → 4,46 % | 1,66 → 1,55 % |
+| nébuleuse | 5,14 → 5,04 % | 1,50 → 1,41 % |
+| secteur | 4,65 → 4,51 % | 1,91 → 1,76 % |
+
+#### Le plancher de `verifierDebord` suit la longueur des morceaux
+
+Un morceau franchit d'autant plus souvent une frontière **qu'il est long** : la
+part de morceaux passant de plus de 100 px chez la voisine tombe de **8,0 % à
+4,0 %** (25 graines) sans que `TRAME_DEBORD` ait bougé d'un pixel. Le plancher de
+3 % mesurait donc la longueur, pas le débord.
+
+Sur **trente fenêtres de six graines** — la taille de l'échantillon du
+vérificateur — la part vaut **1,8 % au pire**, 2,1 % au p10, 3,6 % en médiane,
+5,1 % au mieux : à 3 % il rougissait une fenêtre sur deux. Plancher ramené à
+**1,5 %** ; les six graines par défaut donnent 2,4 %.
+
+**Les émigrés ne sont pas une régression** : 5 sur 25 graines avant, 6 après —
+`decouper` échantillonne au pas de `L / round(L / 40)` et le vérificateur tous les
+20 px, donc un morceau à 45/55 passe d'un côté chez l'un et de l'autre chez
+l'autre. Élargir le jeu de graines du vérificateur le ferait rougir sur un défaut
+qui existait déjà (friche/g44 : 220 px sur 402).
+
 ### Une structure coupée à la règle signale la frontière (0.43.41)
 
 Le sol fond (0.43.39), le semis se mélange (0.43.40), et la **trame** — la plus

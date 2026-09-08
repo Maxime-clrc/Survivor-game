@@ -511,7 +511,7 @@ couleur du sol se lit comme un bug de rendu, pas comme une entrée en scène.
 #### Une structure déborde, elle n'émigre pas
 
 - **UNE STRUCTURE COUPÉE À LA RÈGLE SIGNALE LA FRONTIÈRE QUE TOUT LE RESTE VIENT
-  D'EFFACER.** La trame est la plus grosse chose de l'écran — jusqu'à 3 680 px — et
+  D'EFFACER.** La trame est la plus grosse chose de l'écran — jusqu'à 1 800 px — et
   `garde()` rejetait tout morceau dont la cellule n'était pas celle du district :
   une nef, un ruban, un peigne s'arrêtaient net sur la ligne de grille. Deux
   corrections, et **il faut les deux** : le **point gauchi** (`pointMel`, le seul
@@ -770,7 +770,7 @@ différentes.
   c'est que `sonder` la **calculait et la jetait**.
   - **Le point le plus proche du rectangle, jamais son centre.** La distance se
     mesurait déjà au rectangle — c'était juste — mais une bande de trame fait
-    jusqu'à **3 680 px** : son centre peut être à dix-huit cents pixels d'une
+    jusqu'à **1 800 px** : son centre peut être à neuf cents pixels d'une
     trace qui la touche, et une coulée partirait du milieu du bloc, donc de
     nulle part.
   - **L'auréole** entoure sa source (ce qui a débordé puis séché), **la coulée**
@@ -809,7 +809,7 @@ différentes.
     nommée par son **point de passage** et non par un fichier.
 - **L'OMBRE PORTÉE D'UN BLOC SUIT SA HAUTEUR, EN TROIS VALEURS.** `OBST_OMBRE`
   était un décalage **fixe de 9 px** pour tous les blocs — d'une bitte de 40 px à
-  une bande de trame de **3 680**. Ce qui décale une ombre est la hauteur, qu'un
+  une bande de trame de **1 800**. Ce qui décale une ombre est la hauteur, qu'un
   rendu vu de dessus ne modélise pas ; mais la **silhouette la porte déjà**.
   `hauteurDe(cle, kind)` rend `H_BAS` (5 px), `H_MOYEN` (9, la valeur d'avant)
   ou `H_HAUT` (16).

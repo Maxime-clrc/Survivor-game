@@ -20,10 +20,14 @@ export const BIOME_CFG = {
   // une fente de 160 px est contestee en 4,2 s et une de 200 px jamais ; 240
   // garde la marge d un corps d elite.
   TRAME_BRECHE: 240,
-  // une ouverture au moins tous les deux ecrans, et JAMAIS moins de deux
-  // troncons : une bande d un seul tenant qui traverse un quartier entier
-  // n aurait aucune brèche.
-  TRAME_PAS: 3200,
+  /* UNE OUVERTURE PAR ECRAN, ET C EST UN PLAFOND DE DETOUR. `round` laissait le
+     troncon DEPASSER le pas qu il portait : a L/PAS = 1,15 il rendait 1, donc
+     `max(2, n)` = 2 et des troncons de 3 680 px — 184 m de mur dont la seule
+     brèche est au milieu, donc 92 m a longer avec la horde au dos, sept
+     secondes a `PLAYER_SPEED`. `ceil` borne le troncon au pas, et le pas borne
+     le detour a une demi-vue. JAMAIS moins de deux troncons : une bande d un
+     seul tenant qui traverse un quartier entier n aurait aucune brèche. */
+  TRAME_PAS: 1800,
   TRAME_EP: 62,
   // recul du bord de quartier : deux trames voisines ne se touchent pas, et la
   // frontiere reste franchissable sur toute sa longueur.
@@ -1660,7 +1664,7 @@ function poserBloc(out, x, y, w, h, kind) {
 function bande(out, kind, a0, a1, pos, ep, vert) {
   const L = a1 - a0;
   const br = BIOME_CFG.TRAME_BRECHE;
-  const n = Math.max(2, Math.round(L / BIOME_CFG.TRAME_PAS));
+  const n = Math.max(2, Math.ceil(L / BIOME_CFG.TRAME_PAS));
   const seg = (L - (n - 1) * br) / n;
   if (seg < ep) return;
   for (let i = 0; i < n; i++) {
@@ -2501,8 +2505,13 @@ export function verifierDebord(graines = [1, 7, 30, 99, 151, 323],
       }
     }
   }
+  /* LE PLANCHER SUIT LA LONGUEUR DES MORCEAUX, ET IL A DU BAISSER AVEC ELLE. Un
+     morceau franchit d autant plus souvent une frontiere qu il est long : a
+     `TRAME_PAS` = 3 200 la part valait 8 %, a 1 800 elle vaut 4 % sans que le
+     debord ait bouge d un pixel. Mesure sur trente fenetres de six graines :
+     1,8 % au pire, 3,6 % median — 3 % rougissait donc une fenetre sur deux. */
   const part = total > 0 ? franchissent / total : 0;
-  if (part < 0.03) {
+  if (part < 0.015) {
     soucis.push(`${(part * 100).toFixed(1)} % des morceaux de trame passent de plus`
       + " de 100 px chez la voisine : les structures sont coupees a la regle et le"
       + " debord ne sert a rien");

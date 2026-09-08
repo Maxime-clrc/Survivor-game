@@ -696,7 +696,7 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
     tableau d'obstacles que la pose de cellule : ne compter que `poser` faisait
     déclarer exclusive une famille qu'une voisine bâtissait par sa trame. Et
     `verifierTrame` refuse désormais qu'une région bâtisse sa trame — **la plus
-    grosse structure de l'écran, jusqu'à 3 680 px** — avec une famille qu'elle ne
+    grosse structure de l'écran, jusqu'à 1 800 px** — avec une famille qu'elle ne
     pose pas elle-même.
   - **`TRAMES` était la TROISIÈME table indexée par rang**, après `loiNom` (lot
     5) et `AIR`/`SOL_REGION` (0.43.19). Mesuré : **9 régions sur 31** portaient
@@ -768,7 +768,15 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   reconnaissait de loin, rien ne traversait plusieurs vues, et une région ne
   pouvait être qu'un rangement des trois mêmes formes. Mesure : le plus grand
   objet du dépôt faisait **504 px** (la travée de la Nébuleuse) ; il en fait
-  maintenant **3 680**, et 4 à 9 objets par arène couvrent au moins une vue.
+  maintenant **1 800**, et 4 à 9 objets par arène couvrent au moins une vue.
+  - **UN TRONÇON EST BORNÉ PAR LE DÉTOUR QU'IL IMPOSE, ET LE BORD SE CALCULE.**
+    `bande()` tirait son nombre de tronçons à l'arrondi : à `L / TRAME_PAS` =
+    1,15 il rendait 1, donc `max(2, n)` = 2 et des tronçons de **3 680 px** —
+    184 m de mur dont la seule brèche est au milieu, donc **92 m à longer avec
+    la horde au dos, sept secondes** à `PLAYER_SPEED`. `ceil` borne le tronçon
+    au pas ; le pas, ramené de 3 200 à **1 800**, borne le détour à une
+    demi-vue. Ce qui protège la région ne bouge pas : au moins deux tronçons,
+    donc au moins une brèche, quelle que soit la longueur.
   - **Elle est ancrée au QUARTIER, pas à la cellule.** Une table de `poser` est
     en fractions de cellule et se réinstancie à chaque vue, donc elle est
     **périodique par construction** ; une trame est tirée une fois par région et

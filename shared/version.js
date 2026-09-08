@@ -10738,6 +10738,28 @@
                   dizaine de blocs par ecran une loi d implantation ne se voit pas.
                   Ce n etait pas le canal de la couture. 64 verificateurs.
 
+    0.43.42 lot 43 UN TRONCON DE TRAME EST BORNE PAR LE DETOUR QU IL IMPOSE. `bande`
+                  tirait son nombre de troncons a l ARRONDI : a `L / TRAME_PAS` =
+                  1,15 il rendait 1, donc `max(2, n)` = 2 et des troncons de 3 680 px
+                  — 184 m de mur dont la seule breche est au milieu, donc 92 m a
+                  longer avec la horde au dos, sept secondes a `PLAYER_SPEED`. Mesure
+                  sur cinq graines x trois modes : 39 a 90 murs de plus de 2 000 px
+                  par jeu d arenes, tous lieux confondus, et le plus long faisait
+                  toujours 3 680.
+                  `ceil` BORNE LE TRONCON AU PAS, ET LE PAS BORNE LE DETOUR. Le pas
+                  passe de 3 200 a 1 800 : plus aucun troncon au-dessus de 1 632 px,
+                  donc un demi-ecran de detour au pire. Le budget batit pareil — la
+                  trame passe de 1,8 % a 1,7 % de surface d arene — et ce qui protege
+                  la region ne bouge pas : au moins deux troncons, donc au moins une
+                  breche.
+                  LE PLANCHER DE `verifierDebord` SUIT LA LONGUEUR DES MORCEAUX, ET
+                  IL A DU BAISSER AVEC ELLE. Un morceau franchit d autant plus souvent
+                  une frontiere qu il est long : la part passe de 8 % a 4 % sans que
+                  `TRAME_DEBORD` ait bouge d un pixel. Mesure sur trente fenetres de
+                  six graines : 1,8 % au pire, 3,6 % median — le plancher de 3 %
+                  rougissait donc une fenetre sur deux, et il tombe a 1,5 %.
+                  64 verificateurs.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10746,4 +10768,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.41";
+export const VERSION = "0.43.42";
