@@ -10803,6 +10803,48 @@
                   `traits` en perd un. `verifierPopulation` tire sa graine, donc il
                   ne peut rien attribuer a personne.
 
+    0.43.44 lot 45 LA BRUME RETIRAIT SANS RIEN MONTRER. Depuis 0.11.7 elle est un
+                  champ de vision — la horde s efface entre `FOG_CLEAR` (260) et
+                  `FOG_BLIND` (480) — mais sa seule contrepartie a l ecran etait un
+                  reparametrage du VIGNETTAGE. Or le vignettage est centre sur la
+                  VUE et le masquage sur le JOUEUR : la camera s ecrete aux bords
+                  de l arene et lui non, donc les deux ne pouvaient pas coincider.
+                  Il ne restait au joueur qu une horde qui disparait sans cause.
+                  `drawBrume()` PEINT LE VOILE SUR LE CHAMP DE `voileBrume`
+                  LUI-MEME : meme centre (`brumeCentre`, seul point qui le dit),
+                  meme portee, degrade radial de `FOG_CLEAR` a `FOG_BLIND`. La ou
+                  un corps s efface, la matiere s epaissit.
+                  IL AJOUTE DE LA LUMIERE, IL N ASSOMBRIT PAS (`WEATHER.fog`, froid
+                  et desature) : un voile noir aurait ete un second vignettage, et
+                  le premier existe deja. `FOG_VIGNETTE` et `FOG_FROM` disparaissent
+                  — plus aucun lecteur, et `constantes-check` le dit.
+                  IL MONTE EN CARRE ET NON EN MIROIR DU MASQUAGE. `1 - voileBrume`
+                  etait le reflexe : il donne 44 % du voile au premier quart de la
+                  couronne, donc un bord franc, donc un hublot. De la brume n a pas
+                  de bord. `FOG_VEIL` releve a la capture : 0,5 effacait l identite
+                  du lieu et rendait le lointain plus clair que le proche, 0,3 laisse
+                  lire la Fonderie tout en separant franchement le clair du voile.
+                  OU IL SE POSE EST TOUT L EFFET, ET C EST L ORDRE DE DESSIN QUI LE
+                  PORTE. Une seule passe, entre `drawObstacles` et l annonce : le
+                  MONDE passe dessous (sol, semis, dangers, blocs, marquages), l
+                  ANNONCE passe dessus (telegraphes, boss, allies, marqueurs). D ou
+                  la coupure de `drawZones` en `drawZonesSol` et `drawZonesAnnonce`
+                  — les deux moities se dessinaient dans la meme fonction, et le
+                  voile devait passer entre elles.
+                  ET LA MATIERE DE LA HORDE S EFFACE COMME LA HORDE. Le voile seul
+                  ne suffisait pas : une flaque lisible a 900 px pendant que le corps
+                  qui l a posee est efface rend la brume inutile — c est le defaut
+                  signale. Les zones persistantes lisent donc `voileBrume`, quantifie
+                  en huit paliers pour que le lot de chemins reste UN lot ; hors
+                  brume tout vaut 1, donc un seul groupe, donc l ordre d avant au
+                  pixel pres. Le feu d un JOUEUR (`pj`) ne s efface pas, c est un
+                  allie.
+                  `verif_dessin` POSE UNE METEO. `drawWeather` et `drawBrume` rendent
+                  la main sur `weather` nul : la premiere etait dans la liste des
+                  appels depuis des lots sans jamais traverser son corps. Le mode
+                  sert d index — trois modes, trois meteos, aucun tour de boucle en
+                  plus. 64 verificateurs au vert.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10811,4 +10853,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.43";
+export const VERSION = "0.43.44";

@@ -403,6 +403,42 @@ particules, sous `PARTICLE_MAX`.**
   **froid** : `souffleDe` replie en silence sur le brin gris d'avant, et un lieu
   oublié ne se signalerait que par un danger chaud qui exhale du vent.
 
+#### La brume
+
+**La brume est un champ de vision, et elle a deux moitiés : une qui RETIRE, une
+qui MONTRE.** Elle n'avait longtemps que la première — `voileBrume(x, y)` efface
+la horde au-delà de `FOG_CLEAR` — et pour cause visible, elle reparamétrait le
+**vignettage**. Or le vignettage est centré sur la **vue**, quand le masquage est
+centré sur le **joueur** : la caméra s'écrête aux bords de l'arène et lui non,
+donc les deux ne pouvaient pas coïncider. Il ne restait au joueur qu'une horde
+qui disparaît sans cause.
+
+`drawBrume()` peint le voile **sur le champ de `voileBrume` lui-même** — même
+centre, même portée, même `brumeCentre()`. Là où un corps s'efface, la matière
+s'épaissit.
+
+- **Il ajoute de la lumière, il n'assombrit pas.** Un voile noir serait un second
+  vignettage, et le premier existe déjà. `WEATHER.fog` est froid et désaturé :
+  ce qui flotte entre l'œil et la chose n'a pas de teinte propre, il ne fait que
+  retirer celle du fond.
+- **Il monte en carré, pas en miroir du masquage.** `1 - voileBrume` est le
+  réflexe et il donne 44 % du voile au premier quart de la couronne : un bord
+  franc, donc un hublot. De la brume n'a pas de bord — c'est le **fond** qui est
+  épais, pas la limite du clair.
+- **Où il se pose EST tout l'effet, et c'est l'ordre de dessin qui le porte.**
+  Une seule passe, entre `drawObstacles` et `drawZonesAnnonce` : tout ce qui
+  précède est le **monde** — sol, semis, dangers, blocs, marquages au sol, et la
+  matière que la horde a laissée ; tout ce qui suit est une **annonce** —
+  télégraphes, boss, alliés, marqueurs — et une annonce ne se voile jamais.
+- **La matière de la horde s'efface comme la horde.** Le voile seul ne suffit
+  pas : une flaque lisible à 900 px pendant que le corps qui l'a posée est
+  effacé rend la brume inutile. Les zones persistantes lisent donc `voileBrume`,
+  quantifié en huit paliers pour que le lot de chemins reste **un** lot — hors
+  brume tout vaut 1, donc un seul groupe, donc l'ordre d'avant au pixel près.
+  Le feu d'un **joueur** (`pj`) ne s'efface pas : c'est un allié.
+- **Aucune garde `gfx` sur le dégradé** : il dit *pourquoi* on ne voit plus,
+  c'est de l'information. Les brins, eux, sont de la matière et suivent `gfx`.
+
 **Il n'y a plus de premier plan.** `drawPremierPlan` posait des bandes sombres et
 une silhouette par lieu sur les bords haut et bas, après le vignettage. Il tenait
 ses trois règles — rien au centre, jamais opaque, coupé pendant un boss — et il a

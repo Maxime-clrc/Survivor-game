@@ -1,5 +1,5 @@
 
-import { BIOMES, BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_BRUME, WX_CENDRES, biomeAt, buildBiome, hazardState, windAt } from "/shared/game_state.js";
+import { BIOMES, BIOME_CFG, CFG, HZ_SLIP, HZ_SLOW, WX_BOURRASQUE, WX_CENDRES, biomeAt, buildBiome, hazardState, windAt } from "/shared/game_state.js";
 import { BIOME, BOSS, PROP, SURFACE, WALL, WEATHER, ZONE, alpha } from "/shared/palette.js";
 import { GFX_HIGH, GFX_LOW, difficulty, gfx } from "../core/state.js";
 import { drawGridPings } from "./fx.js";
@@ -9,7 +9,7 @@ import { bornesDistricts, clesDe, loiCle, mulberry32 } from "/shared/biomes.js";
 import { bossAtmo, bossVignette } from "./lumiere.js";
 import { H_BAS, H_HAUT, contourDe, dessinerLed, estCreux, evacDe, evacEtat, habillerBloc, hauteurDe, ledDe, silhouetteBloc } from "./blocs.js";
 import { forEachPropLight } from "./props.js";
-import { biomeKey, districtsCarte, loiAt, loisEnVue, nLois, poidsMonde, solLoiDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
+import { biomeKey, brumeCentre, districtsCarte, loiAt, loisEnVue, nLois, poidsMonde, solLoiDe, GRID_FINE, GRID_MAJOR, biomeIndex, biomeSeed, camera, ctx, decor, hazardsActifs, hazardsDuLieu, inView, lumDir, obstaclesActifs, renderScale, setVignette, skin, sol, vignette, weather } from "./stage.js";
 
 /* L'ARRIERE-PLAN, ET C'EST LE SEUL DU JEU. Il se dessine deux fois : une passe
    PLEINE VUE entre la couleur d'arene et la matiere du sol — c'est ce qui
@@ -1410,12 +1410,11 @@ export function drawVignette() {
   const puls = decor.pulse > 0
     ? 1 + decor.pulse * Math.sin(performance.now() / 2600)
     : 1;
-  const fog = weather?.id === WX_BRUME;
   const bv = bossVignette();
-  if (!vignette || decor.pulse > 0 || fog || bv !== 1) {
+  if (!vignette || decor.pulse > 0 || bv !== 1) {
     const r = Math.hypot(CFG.VIEW_W, CFG.VIEW_H) / 2;
-    const from = Math.max(0, decor.vignetteFrom + (fog ? BIOME_CFG.FOG_FROM : 0));
-    const amt = decor.vignette * puls * (fog ? BIOME_CFG.FOG_VIGNETTE : 1) * bv;
+    const from = Math.max(0, decor.vignetteFrom);
+    const amt = decor.vignette * puls * bv;
     setVignette(ctx.createRadialGradient(
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r * Math.min(0.9, from),
       CFG.VIEW_W / 2, CFG.VIEW_H / 2, r));
@@ -1608,6 +1607,7 @@ function champ(tm, ang, vitesse, longueur, nombre, couleur, opacite, epaisseur,
 // longueur et la vitesse des brins lisent toutes la meme `force`, donc une
 // accalmie se voit avant de se sentir.
 export function drawWeather(tm) {
+  // la brume n'est pas ici : elle se pose APRES les obstacles (`drawBrume`).
   if (!weather) return;
   if (weather.id === WX_BOURRASQUE) {
     const v = windAt(weather, tm);
@@ -1621,6 +1621,38 @@ export function drawWeather(tm) {
     const ang = Math.PI / 2 + Math.sin(tm * 0.11 + weather.p1) * 0.22;
     champ(tm, ang, 108, 9, CHAMP_MAX, WEATHER.ash, 0.20, 2.1);
   }
+}
+
+/* LA BRUME SE VOIT, SINON ELLE N'EST QU'UNE HORDE QUI DISPARAIT. Elle
+   n'empruntait que le vignettage, centre sur la VUE quand son masquage est
+   centre sur le JOUEUR : les deux ne pouvaient pas coincider, et l'effet
+   n'avait aucune cause a l'ecran. Le voile est peint sur le champ de
+   `voileBrume` lui-meme, donc la ou un corps s'efface la matiere s'epaissit.
+
+   IL MONTE EN CARRE ET NON EN MIROIR DU MASQUAGE. `1 - voileBrume` etait le
+   reflexe, et il donne 44 % du voile au premier quart de la couronne : un bord
+   franc, donc un hublot et non de la brume. De la brume n'a pas de bord — c'est
+   le FOND qui est epais, pas la limite du clair.
+
+   OU IL SE POSE EST TOUT L'EFFET : au-dessus du sol, du semis, des dangers, des
+   blocs et de LA MATIERE LAISSEE AU SOL PAR LA HORDE ; au-dessous de toute
+   annonce. Aucune garde `gfx` sur le degrade — c'est de l'INFORMATION, il dit
+   pourquoi on ne voit plus ; les brins, eux, sont de la matiere. */
+export function drawBrume(tm) {
+  const c = brumeCentre();
+  if (!c) return;
+  if (gfx >= GFX_HIGH) {
+    champ(tm, 0.22 + Math.sin(tm * 0.043) * 0.30, 12, 34, CHAMP_MAX,
+          WEATHER.fog, 0.05, 4.5);
+  }
+  const g = ctx.createRadialGradient(c.x, c.y, BIOME_CFG.FOG_CLEAR,
+                                     c.x, c.y, BIOME_CFG.FOG_BLIND);
+  for (let i = 0; i <= 4; i++) {
+    const t = i / 4;
+    g.addColorStop(t, alpha(WEATHER.fog, BIOME_CFG.FOG_VEIL * t * t));
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(camera.x0, camera.y0, CFG.VIEW_W, CFG.VIEW_H);
 }
 
 /* LE MONDE NE DOIT PAS SEMBLER MORT QUAND LE JOUEUR S'ARRETE. Tout reutilise

@@ -259,14 +259,26 @@ export function inView(x, y, m = CULL_MARGIN) {
 // que lui non. Decroissance en carre : on garde longtemps une silhouette, puis
 // elle s'efface d'un coup.
 //
-// Ce que ca masque : la HORDE. Jamais un telegraphe, jamais une zone, jamais un
-// marqueur, jamais le boss, jamais un allie — une annonce qu'on ne voit pas
-// n'est pas difficile, elle est injuste. C'est la seule regle de l'effet.
-export function voileBrume(x, y) {
-  if (!weather || weather.id !== WX_BRUME) return 1;
+// Ce que ca masque : la HORDE, ET CE QU'ELLE A LAISSE AU SOL. Jamais un
+// telegraphe, jamais un marqueur, jamais le boss, jamais un allie — une annonce
+// qu'on ne voit pas n'est pas difficile, elle est injuste. La matiere au sol
+// passe SOUS le voile (`drawBrume`), l'annonce passe dessus : c'est l'ordre de
+// dessin qui le dit, pas un reglage.
+//
+// LE FOYER EST UN OBJET REUTILISE : `voileBrume` est appele par ennemi et par
+// image, un litteral y allouerait a la douzaine.
+const foyerBrume = { x: 0, y: 0 };
+export function brumeCentre() {
+  if (!weather || weather.id !== WX_BRUME) return null;
   const p = predicted ?? latest?.players?.get(myId);
-  const cx = p ? p.x : camera.x, cy = p ? p.y : camera.y;
-  const d = Math.hypot(x - cx, y - cy);
+  foyerBrume.x = p ? p.x : camera.x;
+  foyerBrume.y = p ? p.y : camera.y;
+  return foyerBrume;
+}
+export function voileBrume(x, y) {
+  const c = brumeCentre();
+  if (!c) return 1;
+  const d = Math.hypot(x - c.x, y - c.y);
   if (d <= BIOME_CFG.FOG_CLEAR) return 1;
   if (d >= BIOME_CFG.FOG_BLIND) return 0;
   const k = (BIOME_CFG.FOG_BLIND - d) / (BIOME_CFG.FOG_BLIND - BIOME_CFG.FOG_CLEAR);

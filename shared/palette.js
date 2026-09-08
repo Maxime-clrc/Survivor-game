@@ -500,6 +500,11 @@ function eclat(hex, k) {
 export const WEATHER = {
   wind: "#9fb4cc",
   ash:  "#b8a48c",
+  /* LA BRUME AJOUTE DE LA LUMIERE DIFFUSE, elle n assombrit pas : un voile noir
+     serait un deuxieme vignettage, et le premier existe deja. Froide et
+     desaturee — ce qui flotte entre l oeil et la chose n a pas de teinte
+     propre, il ne fait que retirer celle du fond. */
+  fog:  "#8c9bb0",
 };
 
 export const BOSS = {

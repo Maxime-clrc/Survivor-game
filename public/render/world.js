@@ -13,9 +13,9 @@ import { severite } from "/shared/custom.js";
 import { drawSprite, glActive } from "/sprites.js";
 import { customChoix, INTERP_MS, PERF, PHASE_ROUND, amSpectator, bancReleve, connected, dash, difficulty, gfx, latest, lobby, myId, ownedCounts, phase, phaseUnlockText, ping, predicted, setBancReleve, setPredicted, signalerErreur, snapshots } from "../core/state.js";
 import { alertInfo, alertOrder, alertQueue, alertWarn, bossAnnounce, flatten, flushAlerts, flushWorld, interpolated, lastBossId, lastBossPhase, netPerf, netPerfFrame, phaseAnnounce, setAlertInfo, setAlertOrder, setAlertWarn, setBossAnnounce, setBossCue, setLastBossId, setLastBossPhase, setPhaseAnnounce } from "../net/interp.js";
-import { drawBornes, drawContratZone, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawLoots, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZones, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
+import { drawBornes, drawContratZone, BOLT_DIAMOND, blastSeen, bulletTrail, drawAnchorChains, drawAnchors, drawArc, drawBolt, drawBombs, drawBonusSignal, drawBulwarks, drawDrones, drawLoots, drawEffects, drawEnemies, drawFinArcs, drawHarvests, drawMissile, drawPowerups, drawSancts, drawSoinLinks, drawTurrets, drawVisee, drawZonesAnnonce, drawZonesSol, pruneTrails, scorches, seenShots, shooterFire, shotTrail, silhouetteArme, trackShooters, zoneCracks, zoneMotion } from "./actors.js";
 import { drawBoss, drawGazeArene, drawGazeCone, drawGazeEcran, drawMarkColumns, drawMarks, drawOrbiters, drawPlayers, drawTwinFocus, faisceauAllume, lastPlayerPos, noeudsSortis, noeudsVus, resetGaze } from "./boss.js";
-import { drawArenaBounds, drawAtmosphere, drawBaies, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawVignette, drawWalls, drawWeather } from "./decor.js";
+import { drawArenaBounds, drawAtmosphere, drawBaies, drawBrume, drawCoulee, drawFloor, drawFond, drawGrid, drawObstacles, drawAmer, drawVignette, drawWalls, drawWeather } from "./decor.js";
 import { drawHazards } from "./dangers.js";
 import { drawLumiere } from "./lumiere.js";
 import { drawProps, drawTraces } from "./props.js";
@@ -533,11 +533,17 @@ function drawWorld(v) {
   drawHazards(v.tm);
   drawWeather(v.tm ?? 0);
   drawAtmosphere(v.tm ?? 0);
-  drawZones(v.zones, v.tm);
+  drawZonesSol(v.zones, v.tm);
   // AVEC LE SOL, SOUS LES OBSTACLES : la zone d un contrat est un marquage au
   // sol, et un bloc pose dessus doit la couvrir comme il couvre la grille.
   drawContratZone(v.contrat, v.playerList);
   drawObstacles(v.cover);
+  // LE VOILE DE BRUME S'ARRETE ICI, ET C'EST TOUT L'EFFET. Ce qui precede est le
+  // MONDE — sol, semis, dangers, blocs, marquages, et la matiere que la horde a
+  // laissee au sol ; ce qui suit est une ANNONCE, et une annonce ne se voile
+  // jamais. La horde, elle, s'efface par son alpha (`voileBrume`).
+  drawBrume(v.tm ?? 0);
+  drawZonesAnnonce(v.zones, v.tm);
   drawVisee(v.playerList);
   drawBulwarks(v.bulwarks ?? []);
   drawAnchors(v.anchors ?? []);

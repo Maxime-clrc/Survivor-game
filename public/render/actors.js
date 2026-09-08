@@ -555,41 +555,72 @@ function zoneRandomPoint(z) {
   const a = Math.random() * Math.PI * 2;
   return { x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr };
 }
-export function drawZones(zones, tm = 0) {
-  let list = zones;
-  if (list.length > ZONE_DRAW_MAX) {
-    const rank = z => (z.warn > 0 ? z.warn : z.life > 0 ? 0 : 99);
-    list = [...list].sort((a, b) => rank(a) - rank(b)).slice(0, ZONE_DRAW_MAX);
-  }
+/* DEUX PASSES, PARCE QUE LE VOILE DE BRUME PASSE ENTRE ELLES. Une zone posee
+   est de la MATIERE : la voir a 900 px alors que le corps qui l a posee est
+   efface rend la brume inutile — c etait le defaut, et il se lisait tout de
+   suite sur les flaques de la horde. Un preavis est une ANNONCE, et une annonce
+   qu on ne voit pas n est pas difficile, elle est injuste : elle passe au-dessus
+   du voile. Hors brume les deux passes se suivent, l ordre est celui d avant.
+
+   `zonesRendues` est sans etat et rendu deux fois par image : au-dessus du
+   plafond il trie, et un tri de quarante elements ne se mesure pas. Un cache
+   entre les deux passes se serait desynchronise le jour ou l une est appelee
+   seule. */
+function zonesRendues(zones) {
+  if (zones.length <= ZONE_DRAW_MAX) return zones;
+  const rank = z => (z.warn > 0 ? z.warn : z.life > 0 ? 0 : 99);
+  return [...zones].sort((a, b) => rank(a) - rank(b)).slice(0, ZONE_DRAW_MAX);
+}
+export function drawZonesSol(zones, tm = 0) {
+  const list = zonesRendues(zones);
 
   drawScorches(tm);
   traceDuFeu(list, tm);
   trackZoneMotion(list);
 
-  const ring = list.reduce((n, z) => n + (z.warn > 0 ? 1 : 0), 0) <= 8;
-
   const persistent = [];
   for (const z of list) {
     if (z.blast > 0.15) zoneResolved(z, tm);
-    if (z.warn <= 0 && z.life > 0) { persistent.push(z); continue; }
-    if (z.warn > 0) drawZoneWarn(z, tm, ring);
-    else {
-      const k = Math.max(0, z.blast / 0.25);
-      ctx.fillStyle = alpha(ZONE.blast, k * 0.65);
-      zonePath(z, z.shape === 1 || z.shape === 5 ? 1 : 1 + (1 - k) * 0.12);
-      ctx.fill(zoneRule(z));
-    }
+    if (z.warn <= 0 && z.life > 0) persistent.push(z);
   }
+  if (!persistent.length) return;
 
-  if (persistent.length) {
-    const groupes = new Map();
-    for (const z of persistent) {
-      const k = z.pj || 0;
-      let g = groupes.get(k);
-      if (!g) groupes.set(k, g = []);
-      g.push(z);
-    }
-    for (const [pj, g] of groupes) drawZonesActive(g, tm, pj);
+  /* ET LA MATIERE DE LA HORDE S'EFFACE COMME LA HORDE. Le voile seul ne
+     suffisait pas : une flaque lisible a 900 px pendant que le corps qui l'a
+     posee est efface rend la brume inutile — c'est le meme champ qui doit
+     retirer les deux. Le feu d'un JOUEUR (`pj`) ne s'efface pas, c'est un
+     allie.
+     Le voile se quantifie en huit paliers pour que le lot de chemins reste UN
+     lot : hors brume tout vaut 8, donc un seul groupe, donc l'ordre d'avant au
+     pixel pres. */
+  const groupes = new Map();
+  for (const z of persistent) {
+    const pj = z.pj || 0;
+    const v = pj ? 8 : Math.round(voileBrume(z.x, z.y) * 8);
+    if (v <= 0) continue;
+    const cle = pj * 9 + v;
+    let g = groupes.get(cle);
+    if (!g) groupes.set(cle, g = []);
+    g.push(z);
+  }
+  for (const [cle, g] of groupes) {
+    const voile = (cle % 9) / 8;
+    ctx.globalAlpha = voile;
+    drawZonesActive(g, tm, Math.floor(cle / 9), voile);
+    ctx.globalAlpha = 1;
+  }
+}
+export function drawZonesAnnonce(zones, tm = 0) {
+  const list = zonesRendues(zones);
+  const ring = list.reduce((n, z) => n + (z.warn > 0 ? 1 : 0), 0) <= 8;
+
+  for (const z of list) {
+    if (z.warn > 0) { drawZoneWarn(z, tm, ring); continue; }
+    if (z.life > 0) continue;
+    const k = Math.max(0, z.blast / 0.25);
+    ctx.fillStyle = alpha(ZONE.blast, k * 0.65);
+    zonePath(z, z.shape === 1 || z.shape === 5 ? 1 : 1 + (1 - k) * 0.12);
+    ctx.fill(zoneRule(z));
   }
 
   for (const z of list) drawZoneFlow(z, tm);
@@ -663,7 +694,7 @@ function drawZoneWarn(z, tm, ring) {
 
    `pj` et non la couleur : `ownerColorOf` rend `null` des qu un joueur quitte le
    salon, et la matiere du sol se serait alors mise a changer sous les pieds. */
-function drawZonesActive(list, tm, pj = 0) {
+function drawZonesActive(list, tm, pj = 0, voile = 1) {
   const tick = CFG.ZONE_TICK || 0.25;
   const ph = (tm % tick) / tick;
   const pulse = 0.88 + 0.12 * Math.max(0, 1 - ph * 2.5);
@@ -676,7 +707,7 @@ function drawZonesActive(list, tm, pj = 0) {
 
   for (const z of list) {
     if (zoneFx >= ZONE_FX_MAX || particles.length >= PARTICLE_MAX) break;
-    if (Math.random() < 0.55) {
+    if (Math.random() < 0.55 * voile) {
       const pt = zoneRandomPoint(z);
       particles.push({
         x: pt.x, y: pt.y,
@@ -686,7 +717,7 @@ function drawZonesActive(list, tm, pj = 0) {
       });
       setZoneFx(zoneFx + 1);
     }
-    if (Math.random() < 0.16 && zoneFx < ZONE_FX_MAX && particles.length < PARTICLE_MAX) {
+    if (Math.random() < 0.16 * voile && zoneFx < ZONE_FX_MAX && particles.length < PARTICLE_MAX) {
       const pt = zoneRandomPoint(z);
       particles.push({
         x: pt.x, y: pt.y,

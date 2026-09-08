@@ -39,6 +39,7 @@ const APPELS = [
   ["decor", "drawWalls", () => [null]],
   ["decor", "drawArenaBounds", () => [{ x0: 0, y0: 0, x1: CFG.ARENA_W, y1: CFG.ARENA_H }]],
   ["decor", "drawWeather", () => [12]],
+  ["decor", "drawBrume", () => [12]],
   ["decor", "drawAtmosphere", () => [12]],
   ["decor", "drawVignette", () => []],
   ["props", "drawProps", () => []],
@@ -109,6 +110,12 @@ export async function verifierDessin(graines = [1, 7, 99]) {
       for (const diff of [0, 1, 2]) {
         stage.setBiomeIndex(idx);
         stage.setBiomeSeed(graine);
+        /* ET UNE METEO, SINON DEUX FONCTIONS SUR TROIS SORTENT AU PREMIER `if`.
+           `drawWeather` et `drawBrume` rendent la main sur `weather` nul : sans
+           ca elles etaient dans la liste sans jamais traverser leur corps. Le
+           mode sert d index — trois modes, trois meteos, aucun tour de boucle
+           en plus. */
+        stage.setWeather({ id: diff, p1: 0.5 });
         stage.applyPalette(diff);
         stage.rebuildBiome(diff);
         /* NEUF POINTS DE VUE, ET LES RACCORDS EN FONT PARTIE. Sur une carte

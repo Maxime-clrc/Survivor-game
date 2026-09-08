@@ -79,10 +79,12 @@ export const BIOME_CFG = {
   FOG_CLEAR: 260,
   FOG_BLIND: 480,
 
-  // le vignettage accompagne le masquage au lieu de le contredire : il partait
-  // PLUS LOIN du centre (+0,12), ce qui eclaircissait les bords haut et bas.
-  FOG_VIGNETTE: 1.35,
-  FOG_FROM: -0.10,
+  // LA BRUME EMPRUNTAIT LE VIGNETTAGE, ET LE VIGNETTAGE EST CENTRE SUR LA VUE
+  // alors que le masquage est centre sur le JOUEUR : les deux ne pouvaient pas
+  // coincider, et il ne restait au joueur qu une horde qui disparait sans
+  // cause. Le voile se dessine maintenant sur le champ de `voileBrume`
+  // lui-meme (`drawBrume`) : la ou un corps s efface, la matiere s epaissit.
+  FOG_VEIL: 0.3,
 };
 
 export const HZ_GEYSER = 0;
