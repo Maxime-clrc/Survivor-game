@@ -660,6 +660,23 @@ const GROUPE_POIDS = 0.5;
 const GROUPE_CAP_JEU = 1.25;
 const RECYCLE_DIST = CFG.VIEW_W * 1.5;
 const RECYCLE_PERIODE = 0.5;
+/* EN DESSOUS, UN GROUPE N A PAS D AVANT. Un tiers de `PLAYER_SPEED` : au-dela
+   le joueur va quelque part, en dessous il tient une position — et un corps
+   loin d un groupe qui tient sa position est vraiment en transit, donc il se
+   retire comme avant. */
+const RECYCLE_ALLURE_MIN = CFG.PLAYER_SPEED / 3;
+/* REPOSER SE DECLENCHE PLUS TOT QUE RETIRER, ET LES DEUX SEUILS N ONT PAS LA
+   MEME RAISON. Retirer doit etre FRANCHEMENT plus loin que la boite
+   d apparition, sinon un corps nait et meurt aussitot et la horde clignote.
+   Reposer n a qu une contrainte : le corps deplace doit etre HORS VUE des deux
+   cotes du saut — la demi-diagonale de vue vaut 918 px, la boite d apparition
+   pose a 860 d un bord et jusqu a 1 000 d un coin, donc 1 600 laisse six cents
+   pixels de jeu, soit environ quatre secondes avant le tour suivant.
+   A 2 400 la moitie de la horde restait dans la bande morte : mesure en boucle
+   de 2 000 px, 44 corps sur 74 entre 1 400 et 2 400 px, jamais vus, jamais
+   reposes. */
+const REPOSE_DIST = CFG.VIEW_W;
+const REPOSE_ESSAIS = 3;
 
 export const PLAYER_COLORS = [
   CLASS_COLOR.tank,
@@ -7500,25 +7517,73 @@ export class GameState {
     return best;
   }
 
+  /* LE CAP D UN GROUPE, ET C EST UN COTE DE `_edgePoint`. La vitesse est deja
+     sur le joueur (`p.vx`, `p.vy`, posees a chaque tick par `_players`) : rien
+     a memoriser, rien qui puisse se perimer. */
+  _capDeGroupe(g) {
+    let vx = 0, vy = 0;
+    for (const p of g) { vx += p.vx ?? 0; vy += p.vy ?? 0; }
+    const n = Math.max(1, g.length);
+    vx /= n; vy /= n;
+    if (Math.hypot(vx, vy) < RECYCLE_ALLURE_MIN) return -1;
+    return Math.abs(vx) >= Math.abs(vy) ? (vx > 0 ? 3 : 2) : (vy > 0 ? 1 : 0);
+  }
+
   /* LE PENDANT EXACT DU CHAMP FENETRE : la on cesse de CALCULER loin, ici on
      cesse d'ENTRETENIR loin. A 3 600 px d'ecart la population doublait ou
      triplait (55-69 -> 106-200) sans que le contact augmente : les corps en trop
      etaient EN TRANSIT, on payait leur simulation, leur separation et leur
      instantane, et ils ne menacaient personne. */
+  /* MAIS RETIRER EFFACAIT LA HORDE DES QUE LE JOUEUR AVANCAIT. Il va a 260 px/s,
+     le corps le plus rapide du bestiaire a 156 : sur 14 400 x 8 100 il suffit de
+     tourner large pour la semer definitivement, ce qu une arene de quelques vues
+     ne permettait pas. Mesure, solo/normal, 280 s avant boss : en boucle de
+     600 px le joueur voit 47,6 corps, en boucle de 2 000 il en voit 7,9 — et il
+     en reste 70 vivants, dont 32 entre 1 400 et 2 400 px. La horde ne manquait
+     pas, elle TRAINAIT.
+     ON LA REPOSE DEVANT. Un corps trop loin renait sur le bord de la boite
+     d apparition VERS OU LE GROUPE VA. Rien n est cree ni detruit — le budget
+     reste celui du script, et c est le retrait qui en prelevait — et le point
+     passe par `_edgePoint`, donc par `_pushOffScreen` : rien ne se materialise
+     sous les yeux. Le corps garde ses PV et ses etats ; son lien de relais se
+     rompt tout seul a `lienRupture`, au meme tick, avant l instantane.
+     SANS CAP, ON RETIRE COMME AVANT : voir `RECYCLE_ALLURE_MIN`. */
   _recyclerLoin() {
     const ps = this._alivePlayers();
     if (ps.length === 0) return;
-    const R2 = RECYCLE_DIST * RECYCLE_DIST;
-    const loin = e => {
-      if (e.elite || e.mini || e.id === this.quarry) return false;
+    const groupes = this._groupesVivants();
+    const caps = groupes.map(g => this._capDeGroupe(g));
+    const R2 = RECYCLE_DIST * RECYCLE_DIST, P2 = REPOSE_DIST * REPOSE_DIST;
+    let jetes = null;
+    for (const e of this.enemies) {
+      if (e.elite || e.mini || e.id === this.quarry) continue;
+      let d2 = Infinity;
       for (const p of ps) {
-        if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= R2) return false;
+        const d = (p.x - e.x) ** 2 + (p.y - e.y) ** 2;
+        if (d < d2) d2 = d;
       }
-      return true;
-    };
-    let n = 0;
-    for (const e of this.enemies) if (loin(e)) n++;
-    if (n > 0) this.enemies = this.enemies.filter(e => !loin(e));
+      const gi = groupes.length > 0 ? this._groupeDe(e, groupes) : -1;
+      const cap = gi >= 0 ? caps[gi] : -1;
+      if (cap < 0) {
+        if (d2 > R2) (jetes ??= new Set()).add(e);
+        continue;
+      }
+      if (d2 <= P2) continue;
+      /* ET PAS DANS UNE MASSE. Reposer dans un obstacle rend la main a
+         `_obstacleBlock`, qui recrache le corps sur le bord LE PLUS PROCHE — donc
+         parfois du cote de la vue, et le saut se voit. Mesure : trois corps
+         reposes dans une bande de trame ressortaient dix pixels DANS la camera.
+         Trois essais, sinon on laisse le corps ou il est : la periode suivante
+         retombera sur un autre point. */
+      let pt = null;
+      for (let i = 0; i < REPOSE_ESSAIS && !pt; i++) {
+        const c = this._edgePoint(cap, groupes[gi]);
+        if (!this._inObstacle(c.x, c.y, e.r)) pt = c;
+      }
+      if (!pt) continue;
+      e.x = pt.x; e.y = pt.y;
+    }
+    if (jetes) this.enemies = this.enemies.filter(e => !jetes.has(e));
   }
 
   _alivePlayers() {
@@ -10978,6 +11043,101 @@ export function verifierEncerclement(effectifs = [1, 2, 4], marge = 3) {
       else if (r.t > libre * marge) {
         soucis.push(`${ou} : sortie en ${r.t.toFixed(1)} s contre ${libre.toFixed(1)} s a vide`
           + ` (${(r.t / libre).toFixed(1)}x, plafond ${marge}x)`);
+      }
+    }
+  }
+  return soucis;
+}
+
+/* CE QUE VOIT UN JOUEUR QUI SE DEPLACE, ET LE TRAJET EST LA VARIABLE. Le bot de
+   `mesurePopulation` marche vers le CENTRE et s y tient : aucune de ses mesures
+   ne pouvait voir qu une arene de 14 400 x 8 100 laisse semer la horde. Le rayon
+   de boucle dit tout — zero est l immobilite, 2 000 px est le kiting large que
+   la grande carte rend gratuit.
+   240 S ET PAS PLUS : le premier boss tombe a 300 s et `_spawner` se tait tant
+   qu il est la ; mesurer par-dessus melangerait deux regimes. */
+export function mesureHorde(diffIndex, rayon, secondes = 240, seed = 7, biome = 0) {
+  const g = new GameState(diffIndex, biome, seed);
+  g.addPlayer(1, "bot", 0);
+  g.warmup = 0;
+  const p = g.players.get(1);
+  const inputs = new Map();
+  const images = Math.round(secondes / CFG.TICK);
+  const avant = new Map();
+  let som = 0, n = 0, saut = 0;
+
+  for (let k = 0; k < images; k++) {
+    if (g.cardsPending) {
+      for (const [id, offres] of g.cardOffers) {
+        const j = g.players.get(id);
+        if (j && offres.length) g.takeCard(j, offres[0]);
+      }
+      g.cardsPending = false;
+      g.openNextScreen();
+      continue;
+    }
+    if (g.relicPending) { g.closeMerchant(); g.openNextScreen(); continue; }
+
+    const w = rayon > 0 ? g.time * CFG.PLAYER_SPEED / rayon : 0;
+    inputs.clear();
+    inputs.set(p.id, {
+      x: rayon > 0 ? Math.cos(w) : 0, y: rayon > 0 ? Math.sin(w) : 0,
+      ax: Math.cos(g.time * 3), ay: Math.sin(g.time * 3),
+      ar: SKILL_CFG.DPS_BOMB_RANGE_MAX, dash: false,
+    });
+    g.step(CFG.TICK, inputs);
+    p.hp = p.maxHp; p.downed = false; g.gameOver = false;
+
+    /* LA VUE EST LA CAMERA, PAS LE JOUEUR. Elle se bloque aux bords de l arene,
+       donc au bord le joueur n est plus au centre : mesurer autour de LUI compte
+       comme visible ce que `_pushOffScreen` vient legitimement de poser dehors,
+       et le critere de materialisation rougit sur une apparition correcte. */
+    const vx = Math.max(0, Math.min(CFG.ARENA_W - CFG.VIEW_W, p.x - CFG.VIEW_W / 2));
+    const vy = Math.max(0, Math.min(CFG.ARENA_H - CFG.VIEW_H, p.y - CFG.VIEW_H / 2));
+    let vue = 0;
+    for (const e of g.enemies) {
+      const dedans = e.x >= vx && e.x <= vx + CFG.VIEW_W
+        && e.y >= vy && e.y <= vy + CFG.VIEW_H;
+      if (dedans) {
+        vue++;
+        const av = avant.get(e.id);
+        if (av) saut = Math.max(saut, Math.hypot(e.x - av[0], e.y - av[1]));
+      }
+      avant.set(e.id, [e.x, e.y]);
+    }
+    som += vue; n++;
+  }
+  return { vue: n > 0 ? som / n : 0, corps: g.enemies.length, saut };
+}
+
+/* SE DEPLACER NE DOIT PAS VIDER L ARENE, ET LE CRITERE EST UNE COMPARAISON.
+   Un plancher en nombre de corps serait un chiffre a re-regler a chaque
+   changement de script ; le rapport, lui, tient tout seul — un joueur qui tourne
+   large doit voir AU MOINS ce que voit un joueur immobile, a une marge pres.
+   Mesure avant `REPOSE_DIST` : 0,54 en normal, la horde etait derriere.
+   ET RIEN NE SE MATERIALISE SOUS LES YEUX. La repose saute de six cents pixels
+   au moins ; le plus grand pas legitime d un corps est un dash de trait, deux
+   cent cinquante fois moins. On mesure donc le plus grand deplacement d une
+   image A L ECRAN : au-dela de `SAUT_MAX`, `_pushOffScreen` a laisse passer une
+   apparition dans la vue. */
+const HORDE_PART_MIN = 0.8;
+const HORDE_RAYON = 2000;
+const SAUT_MAX = 400;
+export function verifierRepose(secondes = 240) {
+  const soucis = [];
+  for (const di of DIFFS_MESURE) {
+    const fixe = mesureHorde(di, 0, secondes);
+    const large = mesureHorde(di, HORDE_RAYON, secondes);
+    const ou = DIFFICULTIES[di].key;
+    if (fixe.vue > 0 && large.vue < fixe.vue * HORDE_PART_MIN) {
+      soucis.push(`${ou} : en boucle de ${HORDE_RAYON} px le joueur voit`
+        + ` ${large.vue.toFixed(1)} corps contre ${fixe.vue.toFixed(1)} a l arret`
+        + ` (${(large.vue / fixe.vue).toFixed(2)}x, plancher ${HORDE_PART_MIN})`);
+    }
+    for (const [quoi, r] of [["a l arret", fixe], ["en boucle", large]]) {
+      if (r.saut > SAUT_MAX) {
+        soucis.push(`${ou} ${quoi} : un corps a saute de ${r.saut.toFixed(0)} px`
+          + " en une image DANS la vue — une repose s est materialisee sous les yeux");
       }
     }
   }

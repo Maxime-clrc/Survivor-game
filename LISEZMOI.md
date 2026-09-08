@@ -8,6 +8,92 @@ Les regles du projet vivent dans `CLAUDE.md`, le catalogue dans `shared/`.
 
 ## Mesures relevées
 
+### La horde ne manquait pas, elle traînait (0.43.43)
+
+`_recyclerLoin` retirait tout corps à plus de `RECYCLE_DIST` (2 400 px) de tout
+joueur. C'était juste quand l'arène faisait quelques vues. Sur 14 400 × 8 100, le
+joueur va à **260 px/s** et le corps le plus rapide du bestiaire à **156** : il
+suffit de tourner large pour semer la horde définitivement, et le retrait finit le
+travail.
+
+Solo, normal, 280 s (avant le premier boss), 3 graines × 2 biomes, bot à visée
+tournante. **Corps dans la vue, en moyenne :**
+
+| déplacement | avant | après |
+|---|---:|---:|
+| immobile | 8,7 | 8,7 |
+| boucle de 600 px | 40,9 | 41,4 |
+| boucle de 1 200 px | 14,0 | 14,4 |
+| boucle de 2 000 px | **4,7** | **17,1** |
+| boucle de 3 000 px | **3,9** | **17,0** |
+| fuite en ligne droite | **7,4** | **15,8** |
+
+**Où étaient-ils.** Boucle de 2 000 px, répartition des vivants par distance :
+
+| | < 500 | < 900 | < 1 400 | < 2 400 | > 2 400 |
+|---|---:|---:|---:|---:|---:|
+| avant | 1,8 | 3,6 | 9,1 | **32,1** | 0,4 |
+| après | 11,9 | 14,2 | 14,0 | 6,5 | 0,5 |
+
+70 corps vivants sur un plafond de 220, et **32 dans la bande morte** — au-delà de
+la vue, en deçà du seuil de retrait. Ni vus, ni retirés, ni reposés.
+
+**Les deux seuils n'ont pas la même raison.** Retirer doit être franchement plus
+loin que la boîte d'apparition, sinon un corps naît et meurt aussitôt. Reposer n'a
+qu'une contrainte : être hors vue **des deux côtés du saut**. Demi-diagonale de
+vue 918 px, boîte à 860 d'un bord et 1 000 d'un coin, donc `REPOSE_DIST` = 1 600
+laisse 600 px de jeu — environ quatre secondes avant le tour suivant.
+
+**Un côté et pas trois.** Répartir la repose entre le cap et les deux flancs
+(1/2, 1/4, 1/4) a été mesuré et rendu : 9,9 en fuite contre 15,8, 14,7 en boucle de
+2 000 contre 17,1. Le bord de la boîte fait déjà 1 720 px de large, l'étalement
+latéral est dedans.
+
+#### Le vérificateur a mordu à sa première exécution
+
+`verifierRepose` compare, il ne suppose pas : un joueur qui tourne large doit voir
+au moins **0,8 fois** ce que voit un joueur immobile.
+
+| rapport boucle 2 000 / arrêt | graine 7 | 101 | 4242 |
+|---|---:|---:|---:|
+| calme, avant | 0,41 | 0,28 | 0,46 |
+| calme, après | 1,08 | 1,06 | 1,60 |
+| normal, avant | 0,69 | 1,11 | 0,57 |
+| normal, après | 2,66 | 1,71 | 2,05 |
+| cauchemar, avant | 1,11 | 0,95 | 0,71 |
+| cauchemar, après | 2,26 | 2,25 | 3,17 |
+
+Son second critère — **rien ne se matérialise sous les yeux** — a trouvé un défaut
+au premier essai : trois corps reposés **dans** une bande de trame ressortaient par
+`_obstacleBlock` sur le bord le plus proche, soit dix pixels **dans** la caméra,
+après un saut de 2 180 px. D'où les trois essais contre `_inObstacle`.
+
+**La vue est la caméra, pas le joueur** : elle se bloque aux bords de l'arène, donc
+au bord le joueur n'est plus au centre. Mesurer autour de *lui* comptait comme
+visible ce que `_pushOffScreen` venait légitimement de poser dehors.
+
+#### Ce que dit le reste du mode `--tout`, avant et après
+
+`encerclement`, `determinisme`, `indices`, `groupes` et `vitesses` restent verts.
+Les deux rouges sont **antérieurs**, et le relevé le montre :
+
+| | avant | après |
+|---|---|---|
+| `deplacement` | poche en U / cible mobile : 5/60 bloqués | **identique** |
+| `traits` | 9 préavis pour un budget de 8, en cauchemar 2j **et** 4j | 9 préavis, en cauchemar 2j **seulement** |
+
+`_windupSature` compte au **départ** du préavis et seulement pour les joueurs qui
+voient déjà le corps : un corps qui s'arme hors champ puis entre dans la vue n'est
+compté par personne. Le budget peut donc être dépassé sans que rien ne l'écrive,
+et ça ne dépend pas de la repose.
+
+**`verifierPopulation` n'est pas un critère rejouable** : `mesurePopulation` fait
+`new GameState(diffIndex)` **sans graine**, donc deux exécutions du même code
+rendent deux verdicts. Mesuré : 15 puis 14 problèmes avant, 19 puis 17 après, et la
+ligne « X à 30 cartes selon l'effectif » apparaît dans une exécution sur deux **des
+deux côtés**. Aucune des quatre ne signale de saturation. Tant qu'il tire sa graine,
+on ne peut rien lui attribuer.
+
 ### Un tronçon de trame est borné par le détour qu'il impose (0.43.42)
 
 `bande()` tirait son nombre de tronçons à **l'arrondi** : à `L / TRAME_PAS` = 1,15

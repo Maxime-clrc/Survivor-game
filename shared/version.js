@@ -10760,6 +10760,49 @@
                   rougissait donc une fenetre sur deux, et il tombe a 1,5 %.
                   64 verificateurs.
 
+    0.43.43 lot 44 LA HORDE NE MANQUAIT PAS, ELLE TRAINAIT. `_recyclerLoin` retirait
+                  tout corps a plus de `RECYCLE_DIST` de tout joueur — juste quand
+                  l arene faisait quelques vues, mais sur 14 400 x 8 100 le joueur
+                  va a 260 px/s et le corps le plus rapide du bestiaire a 156 :
+                  tourner large suffit a semer la horde, et le retrait finit le
+                  travail. Mesure solo/normal, 280 s avant boss, trois graines et
+                  deux lieux : en boucle de 600 px le joueur voit 41 corps, en
+                  boucle de 2 000 il en voit 4,7 et en boucle de 3 000 il en voit
+                  3,9. Il en restait 70 vivants, dont 32 entre 1 400 et 2 400 px —
+                  la BANDE MORTE, au-dela de la vue et en deca du seuil de retrait.
+                  ON REPOSE DEVANT AU LIEU DE RETIRER. Un corps au-dela de
+                  `REPOSE_DIST` renait sur le bord de la boite d apparition DU COTE
+                  OU LE GROUPE VA (`_capDeGroupe`, lu sur `p.vx`/`p.vy`). Rien n est
+                  cree ni detruit : le budget reste celui du script, et c est le
+                  retrait qui en prelevait une part — d autant plus grande que le
+                  joueur bougeait. Apres : 17,1 en boucle de 2 000, 17,0 en boucle
+                  de 3 000, 15,8 en fuite, et les cas serres ne bougent pas (41,4 en
+                  boucle de 600, 8,7 a l arret).
+                  LES DEUX SEUILS N ONT PAS LA MEME RAISON. Retirer doit etre
+                  FRANCHEMENT plus loin que la boite, sinon un corps nait et meurt
+                  aussitot ; reposer n a qu une contrainte, etre hors vue DES DEUX
+                  COTES DU SAUT — demi-diagonale de vue 918 px, boite a 860 d un bord
+                  et 1 000 d un coin, donc 1 600 laisse six cents pixels de jeu.
+                  SANS CAP ON RETIRE COMME AVANT (`RECYCLE_ALLURE_MIN`, un tiers de
+                  `PLAYER_SPEED`) : un groupe qui tient sa position n a pas d avant.
+                  UN COTE ET PAS TROIS : etaler la repose sur le cap et ses deux
+                  flancs a ete mesure et rendu (9,9 en fuite contre 15,8). Le bord de
+                  la boite fait deja 1 720 px, l etalement lateral est dedans.
+                  `verifierRepose` COMPARE : un joueur qui tourne large doit voir au
+                  moins 0,8 fois ce que voit un joueur immobile. Avant, le rapport
+                  valait 0,28 a 0,46 au calme ; apres, 1,06 a 1,60. Son second
+                  critere — RIEN NE SE MATERIALISE SOUS LES YEUX — a mordu au premier
+                  essai : trois corps reposes DANS une bande de trame ressortaient
+                  par `_obstacleBlock` a dix pixels dans la camera, apres un saut de
+                  2 180 px. D ou les trois essais contre `_inObstacle`.
+                  LA VUE EST LA CAMERA, PAS LE JOUEUR : elle se bloque aux bords de
+                  l arene, donc mesurer autour du joueur comptait comme visible ce
+                  que `_pushOffScreen` venait legitimement de poser dehors.
+                  64 verificateurs, 86 en `--tout`. Les deux rouges du mode long
+                  (`deplacement`, `traits`) sont ANTERIEURS : identiques avant, et
+                  `traits` en perd un. `verifierPopulation` tire sa graine, donc il
+                  ne peut rien attribuer a personne.
+
    `npm run version-check` refuse un deploiement dont les sources ont bouge sans
    que cette constante suive : la mention ambre du client ne vaut que si quelqu'un
    pense a bumper, et un bump oublie ne se signale pas tout seul.
@@ -10768,4 +10811,4 @@
    navigateur continue de n'en importer qu'une chaine.
    =========================================================================== */
 
-export const VERSION = "0.43.42";
+export const VERSION = "0.43.43";

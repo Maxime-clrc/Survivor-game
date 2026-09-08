@@ -259,6 +259,7 @@ const SUITE = [
   ["tirageBonus", () => G.verifierTirageBonus(), true],
   ["rythmeBonus", () => G.verifierRythmeBonus(), true],
   ["encerclement", () => G.verifierEncerclement(), true],
+  ["repose", () => G.verifierRepose(), true],
   ["population", () => G.verifierPopulation(), true],
   ["marchand", () => G.verifierMarchand(), true],
 ];

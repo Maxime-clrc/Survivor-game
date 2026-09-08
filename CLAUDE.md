@@ -303,7 +303,7 @@ Y brancher toute mécanique nouvelle plutôt que d'ouvrir un second chemin.
 | `_causeBlast` | ce qui compte comme « tué par explosion » : `_explode` **et** `_bombBlast`, qui résout son souffle lui-même |
 | `_windupSature()` / `_windupCompte()` | budget de préavis de ruée, par vue |
 | `_wave(x, y, r, dmg, owner)` | l'onde blanche des cartes (l'horloge de manche s'appelle `_segmentTick(dt)` — deux méthodes de même nom s'écrasent en silence) |
-| `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue |
+| `_spawnPoint(geom, r)` / `_pushOffScreen` / `_edgePoint` | apparition et repoussage hors vue — **et la repose** : un corps semé n'est RETIRÉ que si son groupe ne va nulle part, sinon `_recyclerLoin` le REPOSE par `_edgePoint` du côté où le groupe va. Le joueur va deux fois plus vite que le corps le plus rapide : sur 14 400 × 8 100, retirer efface la horde |
 | `_grille()` | voisinage spatial : séparation entre ennemis **et** ennemi/joueur |
 | `_nav()` / `_navChamp(cible)` (`shared/navigation.js`) | OÙ VA UN CORPS. Trois couches, une seule ici : le champ dit **où aller**, la tangente de `_enemies()` **comment éviter**, `_separate*` **comment se tasser**. Un champ par **JOUEUR**, jamais par ennemi — le coût ne suit pas la population. Le champ ne sert QUE si `droitPossible()` refuse la ligne droite : en terrain libre, le comportement est celui d'avant, au pixel près. Un corps plaqué contre une boîte est DANS une case fermée : son côté ne se déduit pas, il se **souvient** (`navAncre`). Et le point visé se rejoint **en ligne droite**, sinon la tangente locale annule la composante qui ferait tourner le coin |
 | `enemyCap(diffIndex, joueurs)` / `_enemyCap()` | plafond de population, serveur **et** HUD |

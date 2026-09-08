@@ -1113,6 +1113,36 @@ automatiquement : c'est la carte de `CLAUDE.md` qui dit quand l'ouvrir.
   d'apparition, sinon un corps naît et meurt aussitôt et la horde clignote.
   C'est le pendant exact du champ fenêtré : là on cesse de **calculer** loin, ici
   on cesse d'**entretenir** loin.
+- **MAIS ON NE RETIRE QUE CE QU'AUCUN GROUPE NE POURSUIT : SINON ON REPOSE
+  DEVANT.** Retirer était la réponse d'une arène de quelques vues. Sur
+  14 400 × 8 100 elle **efface la horde** : le joueur va à 260 px/s et le corps le
+  plus rapide du bestiaire à 156, donc tourner large suffit à la semer pour
+  toujours. Mesuré, solo/normal, 280 s avant boss : en boucle de 600 px le joueur
+  voit **41 corps**, en boucle de 2 000 il en voit **4,7** — et il en reste 70
+  vivants, dont **32 entre 1 400 et 2 400 px**. La horde ne manquait pas, elle
+  **traînait**.
+  - **Un corps au-delà de `REPOSE_DIST` renaît sur le bord de la boîte
+    d'apparition, du côté où le groupe VA** (`_capDeGroupe`, lu sur `p.vx`/`p.vy`,
+    déjà posées à chaque tick). Rien n'est créé ni détruit : **le budget reste
+    celui du script**, et c'est le retrait qui en prélevait une part — d'autant
+    plus grande que le joueur bougeait.
+  - **Les deux seuils n'ont pas la même raison.** Retirer doit être *franchement*
+    plus loin que la boîte (sinon la horde clignote) ; reposer n'a qu'une
+    contrainte, être **hors vue des deux côtés du saut**. Demi-diagonale de vue
+    918 px, boîte à 860 d'un bord et 1 000 d'un coin : `REPOSE_DIST` = 1 600
+    laisse six cents pixels de jeu, environ quatre secondes. À 2 400 la moitié de
+    la horde restait dans la **bande morte**, jamais vue, jamais reposée.
+  - **Et jamais dans une masse.** Reposer dans un obstacle rend la main à
+    `_obstacleBlock`, qui recrache le corps sur le bord **le plus proche** — donc
+    parfois du côté de la vue. Mesuré : trois corps reposés dans une bande de
+    trame ressortaient **dix pixels dans la caméra**. Trois essais, sinon on
+    laisse le corps où il est.
+  - **Sans cap, on retire comme avant** (`RECYCLE_ALLURE_MIN`, un tiers de
+    `PLAYER_SPEED`) : un groupe qui tient sa position n'a pas d'avant, et un corps
+    loin de lui est vraiment en transit.
+  - **`verifierRepose` compare, il ne suppose pas** : un joueur qui tourne large
+    doit voir au moins 0,8 fois ce que voit un joueur immobile. Avant, le rapport
+    valait **0,28 à 0,46** au calme.
 - **LA COMPOSITION DES GROUPES EST LISIBLE DEPUIS L'ÉTAT** (`this.groupes`),
   jamais recalculée ailleurs. Le Director en aura besoin : **une équipe en
   difficulté est un accident, un joueur qui s'isole est une décision**, et il ne
